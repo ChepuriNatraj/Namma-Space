@@ -8,6 +8,7 @@
   var GRAVITY = 6.5;
   var TEX_W = 1024;
   var q = new URLSearchParams(location.search);
+  var embedMode = q.has("embed");
 
   var canvas = document.getElementById("stage");
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, powerPreference: "high-performance" });
@@ -23,6 +24,7 @@
   var grid = null;
   var yaw = 0, pitch = -0.08;
   var startState = null;
+  var poiData = null, addon = { step: null, frame: null, minimap: null, keydown: null };
 
   function fail(msg) {
     var e = document.getElementById("err"); e.hidden = false; e.textContent = msg;
@@ -81,7 +83,7 @@
   ].join("\n");
 
   var splatMesh = null, worker = null, sortPending = false, lastSortKey = "", total = 0, limit = 0;
-  var surface = null, wire = null, gridFloor = null, gridBlocked = null, gridOccupied = null;
+  var surface = null, wire = null, gridFloor = null, gridOutline = null, gridOccupied = null;
   var mode = q.get("mode") === "mesh" ? "mesh" : "splat";
   var debugOn = q.get("debug") === "1";
 
@@ -213,56 +215,118 @@
     return grid.blocked[r * grid.cols + c] === 1;
   }
 
-  function tileLayer(cells, color, opacity, lift) {
-    var pos = [], cell = grid.cell, y = grid.floorY + lift;
-    for (var r = 0; r < grid.rows; r++) {
-      for (var c = 0; c < grid.cols; c++) {
-        if (!cells[r * grid.cols + c]) continue;
-        var x0 = grid.ox + c * cell, z0 = grid.oz + r * cell, x1 = x0 + cell, z1 = z0 + cell;
-        pos.push(x0, y, z0, x1, y, z0, x1, y, z1, x0, y, z0, x1, y, z1, x0, y, z1);
+  var WALKMAP = { walkable: 0x2fbf71, margin: 0xf2a93b, obstacle: 0xe5484d, marginReach: 4, fenceHeight: 0.45 };
+
+  function cellClasses() {
+    var cols = grid.cols, rows = grid.rows, data = new Uint8Array(cols * rows * 4), reach = WALKMAP.marginReach;
+    function nearWalkable(c, r) {
+      for (var dr = -reach; dr <= reach; dr++) {
+        for (var dc = -reach; dc <= reach; dc++) {
+          var nc = c + dc, nr = r + dr;
+          if (nc >= 0 && nr >= 0 && nc < cols && nr < rows && !grid.blocked[nr * cols + nc]) return true;
+        }
+      }
+      return false;
+    }
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var i = r * cols + c, kind = 0;
+        if (!grid.blocked[i]) kind = 1;
+        else if (grid.occupied[i]) kind = 3;
+        else if (nearWalkable(c, r)) kind = 2;
+        data[i * 4] = kind * 85; data[i * 4 + 3] = 255;
       }
     }
+    var t = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+    return t;
+  }
+
+  function floorLayer() {
+    var x0 = grid.ox, z0 = grid.oz, x1 = x0 + grid.cols * grid.cell, z1 = z0 + grid.rows * grid.cell, y = grid.floorY + 0.01;
     var g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
-    var m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: opacity, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array([x0, y, z0, x1, y, z0, x1, y, z1, x0, y, z0, x1, y, z1, x0, y, z1]), 3));
+    g.setAttribute("cellPos", new THREE.BufferAttribute(new Float32Array([0, 0, grid.cols, 0, grid.cols, grid.rows, 0, 0, grid.cols, grid.rows, 0, grid.rows]), 2));
+    var m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+      transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: {
+        tCells: { value: cellClasses() }, uSize: { value: new THREE.Vector2(grid.cols, grid.rows) },
+        uWalkable: { value: new THREE.Color(WALKMAP.walkable) }, uMargin: { value: new THREE.Color(WALKMAP.margin) }, uObstacle: { value: new THREE.Color(WALKMAP.obstacle) }
+      },
+      vertexShader: "attribute vec2 cellPos; varying vec2 vCell; void main() { vCell = cellPos; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: [
+        "uniform sampler2D tCells; uniform vec2 uSize; uniform vec3 uWalkable; uniform vec3 uMargin; uniform vec3 uObstacle; varying vec2 vCell;",
+        "void main() {",
+        "  float kind = floor(texture2D(tCells, (floor(vCell) + 0.5) / uSize).r * 3.0 + 0.5);",
+        "  if (kind < 0.5) discard;",
+        "  vec2 edge = abs(fract(vCell - 0.5) - 0.5) / fwidth(vCell);",
+        "  float line = 1.0 - clamp(min(edge.x, edge.y), 0.0, 1.0);",
+        "  float fade = clamp(1.5 - 0.5 * max(fwidth(vCell.x), fwidth(vCell.y)) * 6.0, 0.0, 1.0);",
+        "  vec3 color = uWalkable; float fill = 0.20; float rule = 0.38;",
+        "  if (kind > 2.5) { color = uObstacle; fill = 0.30; rule = 0.30; }",
+        "  else if (kind > 1.5) { color = uMargin; fill = 0.10 + 0.14 * step(0.5, fract((vCell.x + vCell.y) * 0.5)); rule = 0.0; }",
+        "  gl_FragColor = vec4(color, fill + rule * line * fade);",
+        "}"
+      ].join("\n")
+    }));
     m.frustumCulled = false; m.renderOrder = 3;
     return m;
   }
 
-  function edgeLayer(cells, color, wallOpacity, height) {
-    var cell = grid.cell, y0 = grid.floorY + 0.01, y1 = y0 + height, walls = [], lines = [];
+  function boundaryEdges(cells) {
+    var cell = grid.cell, edges = [];
     function filled(c, r) { return c >= 0 && r >= 0 && c < grid.cols && r < grid.rows && cells[r * grid.cols + c] === 1; }
-    function edge(ax, az, bx, bz) {
-      walls.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
-      lines.push(ax, y1, az, bx, y1, bz);
-    }
     for (var r = 0; r < grid.rows; r++) {
       for (var c = 0; c < grid.cols; c++) {
         if (!filled(c, r)) continue;
         var x0 = grid.ox + c * cell, z0 = grid.oz + r * cell, x1 = x0 + cell, z1 = z0 + cell;
-        if (!filled(c, r - 1)) edge(x0, z0, x1, z0);
-        if (!filled(c, r + 1)) edge(x0, z1, x1, z1);
-        if (!filled(c - 1, r)) edge(x0, z0, x0, z1);
-        if (!filled(c + 1, r)) edge(x1, z0, x1, z1);
+        if (!filled(c, r - 1)) edges.push(x0, z0, x1, z0);
+        if (!filled(c, r + 1)) edges.push(x0, z1, x1, z1);
+        if (!filled(c - 1, r)) edges.push(x0, z0, x0, z1);
+        if (!filled(c + 1, r)) edges.push(x1, z0, x1, z1);
       }
     }
-    var group = new THREE.Group();
-    var wg = new THREE.BufferGeometry(); wg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(walls), 3));
-    var wm = new THREE.Mesh(wg, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: wallOpacity, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
-    var lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(lines), 3));
-    var lm = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false }));
-    wm.frustumCulled = false; lm.frustumCulled = false; wm.renderOrder = 3; lm.renderOrder = 4;
-    group.add(wm); group.add(lm);
-    return group;
+    return edges;
+  }
+
+  function outlineLayer(cells, color, opacity, lift) {
+    var edges = boundaryEdges(cells), y = grid.floorY + lift, lines = [];
+    for (var i = 0; i < edges.length; i += 4) lines.push(edges[i], y, edges[i + 1], edges[i + 2], y, edges[i + 3]);
+    var g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(lines), 3));
+    var m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity, depthTest: false, depthWrite: false }));
+    m.frustumCulled = false; m.renderOrder = 4;
+    return m;
+  }
+
+  function fenceLayer(cells, color, height) {
+    var edges = boundaryEdges(cells), y0 = grid.floorY + 0.01, y1 = y0 + height, walls = [], rise = [];
+    for (var i = 0; i < edges.length; i += 4) {
+      var ax = edges[i], az = edges[i + 1], bx = edges[i + 2], bz = edges[i + 3];
+      walls.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
+      rise.push(0, 0, 1, 0, 1, 1);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(walls), 3));
+    g.setAttribute("rise", new THREE.BufferAttribute(new Float32Array(rise), 1));
+    var m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+      transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uColor: { value: new THREE.Color(color) } },
+      vertexShader: "attribute float rise; varying float vRise; void main() { vRise = rise; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: "uniform vec3 uColor; varying float vRise; void main() { float fade = 1.0 - vRise; gl_FragColor = vec4(uColor, 0.22 * fade * fade); }"
+    }));
+    m.frustumCulled = false; m.renderOrder = 4;
+    return m;
   }
 
   function buildGridOverlay() {
     var walkable = new Uint8Array(grid.blocked.length);
     for (var i = 0; i < walkable.length; i++) walkable[i] = grid.blocked[i] ? 0 : 1;
-    gridFloor = tileLayer(walkable, 0xD4B068, 0.09, 0.01);
-    gridBlocked = edgeLayer(grid.blocked, 0xD4B068, 0.14, 0.3);
-    gridOccupied = edgeLayer(grid.occupied, 0xC8643C, 0.22, 0.5);
-    scene.add(gridFloor); scene.add(gridBlocked); scene.add(gridOccupied);
+    gridFloor = floorLayer();
+    gridOutline = outlineLayer(walkable, 0xd9ffe9, 0.9, 0.012);
+    gridOccupied = new THREE.Group();
+    gridOccupied.add(fenceLayer(grid.occupied, WALKMAP.obstacle, WALKMAP.fenceHeight));
+    gridOccupied.add(outlineLayer(grid.occupied, 0xffb3b5, 0.85, 0.012));
+    scene.add(gridFloor); scene.add(gridOutline); scene.add(gridOccupied);
   }
 
   var miniPanel = document.getElementById("minimap"), miniCanvas = document.getElementById("minimapCanvas"), miniCtx = miniCanvas.getContext("2d"), mini = null;
@@ -293,14 +357,18 @@
     miniPanel.hidden = false;
   }
 
+  function miniPoint(x, z) {
+    return { x: mini.offX + ((x - grid.ox) / grid.cell - mini.minC) * mini.scale, y: mini.offY + ((z - grid.oz) / grid.cell - mini.minR) * mini.scale };
+  }
+
   function drawMinimap() {
     if (!mini || miniPanel.hidden) return;
-    var px = mini.offX + ((camera.position.x - grid.ox) / grid.cell - mini.minC) * mini.scale;
-    var py = mini.offY + ((camera.position.z - grid.oz) / grid.cell - mini.minR) * mini.scale;
+    var here = miniPoint(camera.position.x, camera.position.z), px = here.x, py = here.y;
     var heading = Math.atan2(-Math.cos(yaw), -Math.sin(yaw));
     var half = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), reach = mini.size * 0.24;
     miniCtx.clearRect(0, 0, mini.size, mini.size);
     miniCtx.drawImage(mini.base, 0, 0);
+    if (addon.minimap) addon.minimap(miniCtx, miniPoint, mini.size);
     var cone = miniCtx.createRadialGradient(px, py, 0, px, py, reach);
     cone.addColorStop(0, "rgba(255, 255, 255, 0.7)"); cone.addColorStop(1, "rgba(255, 255, 255, 0)");
     miniCtx.fillStyle = cone;
@@ -311,8 +379,9 @@
   }
 
   var guide = document.getElementById("guide");
+  var guideKey = "namma_guide_seen_" + location.pathname;
   function guideSeen() {
-    try { return localStorage.getItem("namma_guide_seen") === "1"; } catch (e) { return false; }
+    try { return localStorage.getItem(guideKey) === "1"; } catch (e) { return false; }
   }
   function openGuide() {
     guide.hidden = false;
@@ -321,7 +390,7 @@
   }
   function closeGuide() {
     guide.hidden = true;
-    try { localStorage.setItem("namma_guide_seen", "1"); } catch (e) { }
+    try { localStorage.setItem(guideKey, "1"); } catch (e) { }
     canvas.focus();
   }
   document.getElementById("guideGo").addEventListener("click", closeGuide);
@@ -333,10 +402,11 @@
     if (surface) surface.visible = mode === "mesh";
     if (wire) wire.visible = debugOn;
     if (gridFloor) gridFloor.visible = debugOn;
-    if (gridBlocked) gridBlocked.visible = debugOn;
+    if (gridOutline) gridOutline.visible = debugOn;
     if (gridOccupied) gridOccupied.visible = debugOn;
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (b) { b.setAttribute("aria-pressed", b.dataset.mode === mode ? "true" : "false"); });
     document.getElementById("debugBtn").setAttribute("aria-pressed", debugOn ? "true" : "false");
+    document.body.classList.toggle("walkmap", debugOn);
   }
   function setMode(m) { mode = m; applyMode(); }
   function toggleDebug() { debugOn = !debugOn; applyMode(); }
@@ -360,6 +430,7 @@
   function held(a, b) { return keys[a] || (b && keys[b]); }
   window.addEventListener("keydown", function (e) {
     if (!guide.hidden) { if (e.code === "Enter" || e.code === "Escape") closeGuide(); return; }
+    if (addon.keydown && addon.keydown(e)) return;
     keys[e.code] = true;
     if (e.code === "KeyN" && mini) miniPanel.hidden = !miniPanel.hidden;
     if (e.code === "Digit1") setMode("splat");
@@ -388,9 +459,9 @@
     locked = document.pointerLockElement === canvas; canvas.classList.toggle("locked", locked); hint.hidden = locked;
   });
 
-  var renderScale = 1;
+  var renderScale = embedMode ? 0.85 : 1;
   function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.25) * renderScale;
+    var dpr = Math.min(window.devicePixelRatio || 1, embedMode ? 1 : 1.25) * renderScale;
     renderer.setPixelRatio(dpr); renderer.setSize(window.innerWidth, window.innerHeight, false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
   }
@@ -426,10 +497,12 @@
   function tick(now) {
     var jsStart = performance.now();
     var dt = Math.min((now - last) / 1000, 0.1); last = now;
-    stepWalk(dt, {
+    var input = {
       forward: held("KeyW", "ArrowUp"), back: held("KeyS", "ArrowDown"), left: held("KeyA", "ArrowLeft"), right: held("KeyD", "ArrowRight"),
       run: held("ShiftLeft", "ShiftRight"), jump: held("Space")
-    });
+    };
+    if (addon.step) input = addon.step(dt, input) || input;
+    stepWalk(dt, input);
     camera.rotation.set(pitch, yaw, 0);
     camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
     if (splatMesh && splatMesh.visible) {
@@ -440,6 +513,7 @@
       var key = [e[2], e[6], e[10], e[14]].map(function (v) { return v.toFixed(3); }).join();
       if (!sortPending && key !== lastSortKey) { sortPending = true; lastSortKey = key; perf.sortSent = performance.now(); worker.postMessage({ row: [e[2], e[6], e[10], e[14]], lim: limit }); }
     }
+    if (addon.frame) addon.frame(dt, now);
     renderer.render(scene, camera);
     drawMinimap();
     frames++;
@@ -470,6 +544,22 @@
     look: function (dx, dy) { yaw -= dx * 0.0032; pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch - dy * 0.0032)); },
     reset: resetToDoor
   };
+
+  function startPois() {
+    var editing = q.get("edit") === "1";
+    if (!window.NammaPoiUI || (!poiData && !editing)) return;
+    window.NammaPoiUI.start({
+      scene: scene, camera: camera, canvas: canvas, grid: grid, addon: addon, data: poiData, editing: editing,
+      poiFile: manifest.pois || "pois.json", walkSpeed: WALK_SPEED, miniCanvas: miniCanvas,
+      pose: window.__v.pose,
+      splats: function () { var u = splatMesh.material.uniforms; return { xyz: u.tA.value.image.data, color: u.tD.value.image.data, count: total }; },
+      isLocked: function () { return locked; },
+      setView: function (x, z, newYaw, newPitch) {
+        camera.position.x = x; camera.position.z = z; yaw = newYaw;
+        pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, newPitch));
+      }
+    });
+  }
 
   var tuneCancelled = false, tuneTimer = 0;
   function measureFps(ms, done) {
@@ -509,9 +599,10 @@
   var manifest = null;
   fetchBuf(ASSETS + "manifest.json").then(function (mb) {
     manifest = JSON.parse(new TextDecoder().decode(mb));
-    return Promise.all([fetchBuf(ASSETS + manifest.grid), fetchBuf(ASSETS + manifest.splat, function (p) { progress(0.85 * p, "Loading splat " + Math.round(100 * p) + "%"); })]);
+    return Promise.all([fetchBuf(ASSETS + manifest.grid), fetchBuf(ASSETS + manifest.splat, function (p) { progress(0.85 * p, "Loading splat " + Math.round(100 * p) + "%"); }), manifest.pois ? fetchBuf(ASSETS + manifest.pois) : null]);
   }).then(function (res) {
     parseGrid(JSON.parse(new TextDecoder().decode(res[0])));
+    if (res[2]) poiData = JSON.parse(new TextDecoder().decode(res[2]));
     startState = { x: grid.start.x, z: grid.start.z, yaw: Math.atan2(-grid.start.forwardX, -grid.start.forwardZ), pitch: -0.08 };
     resetToDoor();
     progress(0.9, "Preparing splats");
@@ -525,11 +616,22 @@
     buildGridOverlay();
     buildMinimap();
     var detail = parseInt(q.get("detail") || "0", 10);
-    if (detail) setDetail(detail);
+    if (detail) setDetail(detail); else if (embedMode) setDetail(500000);
+    startPois();
     applyMode(); progress(1, "Ready");
     document.getElementById("loading").hidden = true; window.__ready = true;
     if (!guideSeen() && q.get("guide") !== "0") openGuide();
     scheduleAutoTune();
     requestAnimationFrame(tick);
   }).catch(function (e) { fail(String(e && e.message || e)); });
+})();
+
+(function () {
+  var fs = document.getElementById("fsBtn");
+  if (!fs) return;
+  fs.addEventListener("click", function () {
+    var el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (el.requestFullscreen) el.requestFullscreen();
+  });
 })();

@@ -12,6 +12,44 @@ Open **https://namma-space-documentation.pages.dev/**. The page has the demo vid
 
 Click the scene, then use **W A S D** to walk, **Shift** to run, **Space** to jump, the mouse to look, **Esc** to free the mouse, **R** to return to the door, **M** for the collision grid and **N** for the live map. Add `?debug` to the address for a performance panel.
 
+## Round 2: places, search and routes
+
+The viewer can show named places (points of interest), search them and draw a walkable route to one. The Hallway and Bedroom scene has six: TV, fridge, switchboard, mirror, bed and wardrobe.
+
+| In the viewer | How |
+|---|---|
+| Find a place | press `/` (or Ctrl+K) and type; typos and other names such as "almirah" work |
+| Pick a place | click its label or its pin on the live map, or aim at the label and press `E` |
+| Go there | `G` walks you along the route, `F` flies there, `X` clears the route |
+| See the collision map | `M` (green = walkable, amber = safety margin, red = obstacle) |
+
+The route is A* on the same collision grid that stops you at walls, so it never crosses a blocked cell.
+
+**The data.** Each scene's places live in `site/assets/pois.json`, named by the `"pois"` key of `site/assets/manifest.json`. A scene without that key works exactly as before.
+
+```json
+{ "id": "fridge", "name": "Fridge", "aliases": ["refrigerator"], "category": "appliance",
+  "x": -0.22, "y": 0.81, "z": -1.37, "description": "Refrigerator in the kitchen corner" }
+```
+
+`x`, `y`, `z` are metres in the scene (`y` is height above the floor). An optional `"stand": {"x": 0, "z": 0}` fixes where a visitor stands to look at the place; without it the viewer picks a walkable spot about 1.2 m in front.
+
+**Adding places.**
+1. With the editor: open the scene with `?edit=1` at the end of the address, aim the centre dot at an object, press `T`, type its name, then press **Download pois.json** and put the file in `site/assets/`.
+2. By hand: copy one entry in `pois.json`, change the `id`, name and numbers. The editor shows the coordinates under its dot, and the top-right panel shows where you are standing.
+
+**The code** (in `namma_pipeline/viewer_template/`, copied into every scene's `site/`):
+
+| File | Job |
+|---|---|
+| `nav.js` | A* pathfinding, snapping to reachable cells, path smoothing, line of sight |
+| `poi.js` | search scoring, the spatial bucket index, stand points, file checks |
+| `poi_ui.js` | labels, search box, info card, route ribbon, map pins, fly-to, auto-walk |
+| `poi_editor.js` | the `?edit=1` tagging tool |
+| `main.js` | the splat viewer; it calls the files above through four small hooks |
+
+**Tests.** `node --test "test/*.test.js"` runs 23 checks on the real grids and `pois.json` (needs only Node.js 21 or newer).
+
 ## How it works
 
 One phone video goes in, a walkable 3D scene comes out. Every arrow is labelled with the file that moves along it.
@@ -178,7 +216,7 @@ The full list of problems we met and how we handled them is in section 10 of the
 run_all.py             one command for the whole pipeline
 requirements.txt       Python packages for STEPs 1 and 3
 requirements-train.txt Python packages for STEP 2 (training)
-test/                  sample scene for run_all.py --test
+test/                  sample scene for run_all.py --test, navigation and POI tests
 01_room/               hero scene: site/ and training notes
 02_hallway_bedroom/    second scene, site/
 03_bedroom_early/      first scene, site/
