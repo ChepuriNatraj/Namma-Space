@@ -7,11 +7,15 @@ FACTOR="${2:-1}"
 CACHE="${3:-gpu}"
 PROFILE="${4:-default}"
 
+QUALITY_ARGS=(--pipeline.model.use-scale-regularization True --pipeline.model.use-bilateral-grid True)
 case "$PROFILE" in
   default)  METHOD="splatfacto"; MODEL_ARGS=() ;;
   scalereg) METHOD="splatfacto"; MODEL_ARGS=(--pipeline.model.use-scale-regularization True) ;;
-  quality)  METHOD="splatfacto-big"; MODEL_ARGS=(--pipeline.model.use-scale-regularization True --pipeline.model.use-bilateral-grid True) ;;
-  *) echo " STOPPED: unknown profile '$PROFILE' (use default, scalereg or quality)"; exit 1 ;;
+  quality)  METHOD="splatfacto-big"; MODEL_ARGS=("${QUALITY_ARGS[@]}") ;;
+  fast)     METHOD="splatfacto-big"; MODEL_ARGS=("${QUALITY_ARGS[@]}") ;;
+  poseopt)  METHOD="splatfacto-big"; MODEL_ARGS=("${QUALITY_ARGS[@]}" --pipeline.model.camera-optimizer.mode SO3xR3) ;;
+  flat)     METHOD="splatfacto"; MODEL_ARGS=(--pipeline.model.sh-degree 0) ;;
+  *) echo " STOPPED: unknown profile '$PROFILE' (use default, scalereg, quality, fast, poseopt or flat)"; exit 1 ;;
 esac
 
 banner() { echo; echo "=============================================================================="; echo " STEP 2 - $1"; echo "=============================================================================="; }
@@ -25,7 +29,7 @@ LOG="logs/step2_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG") 2>&1
 START_ALL=$(date +%s)
 
-banner "1/4 prepare the environment and check the data"
+banner "1/5 prepare the environment and check the data"
 if ! command -v ns-train >/dev/null 2>&1; then
   for CONDA_SH in "$HOME/miniconda3/etc/profile.d/conda.sh" "$HOME/anaconda3/etc/profile.d/conda.sh"; do
     [ -f "$CONDA_SH" ] && source "$CONDA_SH" && break
@@ -63,7 +67,7 @@ EOF
 [ $? -eq 0 ] || fail "images are grayscale. Training on them gives a grey scene. Ask the laptop side to re-extract in colour."
 T_PREP=$(date +%s)
 
-banner "2/4 training the 3D Gaussian splat"
+banner "2/5 training the 3D Gaussian splat"
 rm -f logs/vram.csv
 ( while true; do nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits >> logs/vram.csv; sleep 2; done ) &
 SAMPLER=$!
@@ -81,10 +85,10 @@ ns-train "$METHOD" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
   colmap --colmap-path colmap/sparse/0 --images-path images --downscale-factor "$FACTOR"
 RC=$?
 T_TRAIN=$(date +%s)
-[ "$RC" -eq 0 ] || fail "training failed (exit $RC). Log: $LOG. Fix the problem and run this script again."
+[ "$RC" -eq 0 ] || fail "training failed (exit $RC). Log: $LOG. After fixing, you can continue with: RESUME=1 is not automatic here, ask Claude to resume from outputs/"
 echo " finished at $(stamp)"
 
-banner "3/4 exporting the splat file"
+banner "3/5 exporting the splat file"
 CFG=$(find outputs -path "*$SCENE*" -name config.yml | sort | tail -1)
 [ -n "$CFG" ] || fail "no config.yml found after training"
 RUNDIR=$(dirname "$CFG")
@@ -94,8 +98,18 @@ PLY=$(find results/export -name '*.ply' | head -1)
 [ -n "$PLY" ] || fail "export produced no .ply"
 T_EXPORT=$(date +%s)
 
-banner "4/4 packing the result zip"
+banner "4/5 scoring on the held-out frames"
 PKG="results/pkg"; rm -rf "$PKG"; mkdir -p "$PKG"
+EVAL_FILES=()
+if ns-eval --load-config "$CFG" --output-path "$PKG/eval.json"; then
+  EVAL_FILES=(eval.json)
+else
+  echo " WARNING: ns-eval failed, so this result has no eval.json. Training and export are still valid."
+  rm -f "$PKG/eval.json"
+fi
+T_EVAL=$(date +%s)
+
+banner "5/5 packing the result zip"
 cp "$PLY" "$PKG/splat.ply"
 cp "$CFG" "$PKG/config.yml"
 cp "$RUNDIR/dataparser_transforms.json" "$PKG/dataparser_transforms.json"
@@ -111,8 +125,26 @@ T_END=$(date +%s)
   echo "prepare_seconds: $((T_PREP-START_ALL))"
   echo "train_seconds: $((T_TRAIN-T_PREP))"
   echo "export_seconds: $((T_EXPORT-T_TRAIN))"
+  echo "eval_seconds: $((T_EVAL-T_EXPORT))"
   echo "total_seconds: $((T_END-START_ALL))"
   echo "ply_bytes: $(stat -c %s "$PKG/splat.ply")"
+  python - "$PKG" <<'EOF'
+import json, os, sys
+package = sys.argv[1]
+with open(os.path.join(package, "splat.ply"), "rb") as ply:
+    for line in ply:
+        if line.startswith(b"element vertex"):
+            print("gaussians:", line.split()[-1].decode())
+            break
+        if line.startswith(b"end_header"):
+            break
+score_file = os.path.join(package, "eval.json")
+if os.path.exists(score_file):
+    scores = json.load(open(score_file)).get("results", {})
+    for key in ("psnr", "ssim", "lpips"):
+        if key in scores:
+            print(f"heldout_{key}: {scores[key]:.4f}")
+EOF
   echo "peak_gpu_memory_MiB_all_users: $PEAK"
   echo "gpu: $(nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | head -1)"
   echo "finished: $(stamp)"
@@ -120,7 +152,7 @@ T_END=$(date +%s)
 cp "$LOG" "$PKG/step2.log"
 ZIP="results/${SCENE}_${PROFILE}_result.zip"
 rm -f "$ZIP"
-( cd "$PKG" && python -m zipfile -c "../${SCENE}_${PROFILE}_result.zip" splat.ply config.yml dataparser_transforms.json scene.json timing.txt step2.log )
+( cd "$PKG" && python -m zipfile -c "../${SCENE}_${PROFILE}_result.zip" splat.ply config.yml dataparser_transforms.json scene.json timing.txt step2.log ${EVAL_FILES[@]+"${EVAL_FILES[@]}"} )
 kill $SAMPLER 2>/dev/null
 
 echo
@@ -130,9 +162,11 @@ echo "--------------------------------------------------------------------------
 printf "  %-40s %8ss\n" "check and prepare" "$((T_PREP-START_ALL))"
 printf "  %-40s %8ss\n" "training" "$((T_TRAIN-T_PREP))"
 printf "  %-40s %8ss\n" "export" "$((T_EXPORT-T_TRAIN))"
+printf "  %-40s %8ss\n" "held-out scoring" "$((T_EVAL-T_EXPORT))"
 printf "  %-40s %8ss\n" "TOTAL" "$((T_END-START_ALL))"
 echo "------------------------------------------------------------------------------"
 echo " peak GPU memory (whole GPU, other users included): ${PEAK} MiB"
+grep -E "^(gaussians|heldout_)" "$PKG/timing.txt" | sed 's/^/ /'
 echo
 echo " STEP 2 FINISHED"
 echo " RESULT ZIP TO SEND BACK: $(pwd)/$ZIP  ($(du -h "$ZIP" | cut -f1))"

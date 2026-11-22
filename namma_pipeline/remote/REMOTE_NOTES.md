@@ -1,5 +1,7 @@
 # Remote GPU worker notes
 
+Update 2026-11-16: STEP 2 no longer needs a lab GPU PC. Since 14 Nov it runs on a free Colab or Kaggle T4 with `NAMMA_STEP2_colab.ipynb` or `NAMMA_STEP2_kaggle.ipynb` in this folder (30,000 steps, half-size images, about 25 minutes, held-out PSNR 29.12 on the 4K scene). The shell scripts below still work on any Linux GPU machine. The environment described at the end of this file is the old lab PC; the notebooks build their own Python 3.10 environment (torch 2.4.1+cu121, gsplat 1.4.0, nerfstudio 1.1.5).
+
 Step 2 of the pipeline trains the 3D Gaussian splat on a GPU machine. This file travels inside the bundle zip.
 
 ## Bundle layout

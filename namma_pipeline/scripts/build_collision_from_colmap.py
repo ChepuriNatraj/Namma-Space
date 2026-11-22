@@ -98,6 +98,13 @@ def main():
     xyz, rgb = xyz[keep], rgb[keep]
 
     centers = -np.einsum("nji,nj->ni", R, t)
+    distance_to_median = np.linalg.norm(centers - np.median(centers, axis=0), axis=1)
+    plausible = distance_to_median < 10 * np.percentile(distance_to_median, 90)
+    if not plausible.all():
+        stray = [names[i] for i in np.nonzero(~plausible)[0]]
+        print(f"      ignoring {len(stray)} camera(s) placed far outside the scene: {stray}")
+        names = [n for n, ok in zip(names, plausible) if ok]
+        R, t, centers = R[plausible], t[plausible], centers[plausible]
     cam_up = -R[:, 1, :]
     cam_fwd = R[:, 2, :]
 

@@ -229,7 +229,7 @@ def main():
         index_path = os.path.join(vt, "index.html")
         html = open(index_path, encoding="utf-8").read()
         html = html.replace("<title>NammaSpace Bedroom</title>", f"<title>NammaSpace {a.title}</title>")
-        html = html.replace("NammaSpace &middot; Bedroom", f"NammaSpace &middot; {a.title}")
+        html = html.replace('<span class="scene">Bedroom</span>', f'<span class="scene">{a.title}</span>')
         html = re.sub(r'<p class="sub">.*?</p>', '<p class="sub">Walk-through of a 3D Gaussian splat. Walls and furniture block you using the collision grid built from the scan.</p>', html, flags=re.S)
         open(index_path, "w", encoding="utf-8").write(html)
     shutil.rmtree(os.path.join(a.out, "_unzipped"), ignore_errors=True)

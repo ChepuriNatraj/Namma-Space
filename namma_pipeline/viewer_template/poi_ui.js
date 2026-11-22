@@ -1,7 +1,7 @@
 (function () {
   const CATEGORY_COLORS = { furniture: "#5aa9ff", appliance: "#ff9f43", electrical: "#ffd43b", door: "#51cf66", window: "#66d9e8", room: "#b197fc" };
   const DEFAULT_COLOR = "#ced4da";
-  const ROUTE_COLOR = 0x2f8cff, ROUTE_WIDTH = 0.16, ROUTE_SPACING = 0.2, ROUTE_LIFT = 0.03;
+  const ROUTE_COLOR = 0x38BDF8, ROUTE_WIDTH = 0.16, ROUTE_SPACING = 0.2, ROUTE_LIFT = 0.03;
   const LABEL_RANGE = 12, NAME_RANGE = 7, AIM_RADIUS = 110, NEARBY_RANGE = 3;
   const ARRIVE_DISTANCE = 0.3, LOOK_AHEAD = 0.7, WALK_PITCH = -0.3, TURN_RATE = 3.2, FLY_SECONDS = 0.9, TURN_SECONDS = 0.5, REROUTE_SECONDS = 0.1;
 
@@ -35,21 +35,21 @@
     const input = el("input", "poi-input"), chips = el("div", "poi-chips"), list = el("div", "poi-results");
     viewer.canvas.insertAdjacentElement("afterend", labels);
     labels.insertAdjacentElement("afterend", cross);
-    input.type = "search"; input.placeholder = "Search places, for example bed or fridge"; input.setAttribute("aria-label", "Search places");
+    input.type = "search"; input.placeholder = "Search places, like bed"; input.setAttribute("aria-label", "Search places");
     list.setAttribute("role", "listbox");
-    box.append(input, chips, list, el("div", "poi-hint", "Up and Down to move, Enter to show the route, Esc to close"));
+    const searchRow = el("div", "poi-search-row"), closeSearch = el("button", "", "Close");
+    closeSearch.type = "button"; closeSearch.addEventListener("click", function () { closePalette(); });
+    searchRow.append(input, closeSearch);
+    box.append(searchRow, chips, list, el("div", "poi-hint", "Up and Down to move, Enter to show the route, Esc to close"));
     palette.append(box); palette.hidden = true; status.hidden = true; card.hidden = true;
-    document.body.append(status, card, palette);
+    document.body.append(palette);
+    const dock = document.getElementById("dock"), action = document.getElementById("action");
+    dock.prepend(status);
+    action.prepend(card);
 
-    const searchButton = el("button", "", "/ Search");
-    searchButton.type = "button";
-    searchButton.addEventListener("click", openPalette);
-    const modes = document.querySelector("#head .modes");
-    if (modes) modes.appendChild(searchButton);
-    const help = document.getElementById("help");
-    if (help) help.insertAdjacentHTML("beforeend", '<div class="grp"><div class="keys"><kbd>/</kbd><kbd>E</kbd><kbd>G</kbd></div><span class="lab">Search / Select / Walk there</span></div>');
-    const steps = document.querySelector("#guide .steps");
-    if (steps) steps.insertAdjacentHTML("beforeend", '<div class="step" style="grid-column:1 / -1"><b>Find a place</b><span><kbd>/</kbd> opens search. Click a place label, or aim at it and press <kbd>E</kbd>. A route appears on the floor: <kbd>G</kbd> walks you there, <kbd>F</kbd> flies there, <kbd>X</kbd> clears it.</span></div>');
+    const findButton = document.getElementById("findBtn");
+    findButton.hidden = false;
+    findButton.addEventListener("click", openPalette);
 
     function say(text, seconds) {
       status.textContent = text; status.hidden = false;
@@ -331,7 +331,7 @@
         context.beginPath();
         route.points.forEach(function (point, i) { const p = toMap(point.x, point.z); if (i) context.lineTo(p.x, p.y); else context.moveTo(p.x, p.y); });
         context.lineJoin = "round"; context.lineCap = "round";
-        context.lineWidth = size * 0.02; context.strokeStyle = "#2f8cff"; context.stroke();
+        context.lineWidth = size * 0.02; context.strokeStyle = "#38BDF8"; context.stroke();
       }
       placed.forEach(function (entry) {
         const p = toMap(entry.poi.x, entry.poi.z), chosen = entry === selected;
@@ -359,7 +359,7 @@
     });
 
     function nearbyOf(entry) {
-      return index.within(entry.poi.x, entry.poi.z, NEARBY_RANGE).filter(function (poi) { return poi !== entry.poi; });
+      return index.within(entry.poi.x, entry.poi.z, NEARBY_RANGE).filter(function (poi) { return poi !== entry.poi; }).sort(function (a, b) { return Math.hypot(a.x - entry.poi.x, a.z - entry.poi.z) - Math.hypot(b.x - entry.poi.x, b.z - entry.poi.z); }).slice(0, 4);
     }
 
     function updateCardDistance() {
@@ -373,17 +373,18 @@
       if (!selected) { card.hidden = true; return; }
       const poi = selected.poi;
       card.textContent = ""; card.hidden = false; card.style.setProperty("--c", colorOf(poi));
-      const head = el("div", "poi-card-head"), close = el("button", "poi-close", "×");
-      close.type = "button"; close.setAttribute("aria-label", "Close"); close.addEventListener("click", clearSelection);
+      const head = el("div", "poi-card-head"), close = el("button", "poi-close", "Close");
+      close.type = "button"; close.addEventListener("click", clearSelection);
       head.append(el("span", "poi-tag", poi.category || "place"), close);
       card.append(head, el("h2", "", poi.name));
+      card.setAttribute("aria-label", poi.name);
       if (poi.description) card.append(el("p", "poi-description", poi.description));
       card.append(el("p", "poi-distance"));
       const actions = el("div", "poi-actions");
-      [["Walk there", "G", walkToSelected, "primary"], ["Fly there", "F", flyToSelected, ""], ["Clear", "X", clearSelection, ""]].forEach(function (spec) {
-        const button = el("button", spec[3]);
+      [["Walk there", "G", walkToSelected, "primary"], ["Fly there", "F", flyToSelected, ""]].forEach(function (spec) {
+        const button = el("button", "btn " + spec[3]);
         button.type = "button"; button.append(spec[0], el("kbd", "", spec[1]));
-        button.disabled = spec[2] !== clearSelection && !selected.stand;
+        button.disabled = !selected.stand;
         button.addEventListener("click", function () { spec[2](); viewer.canvas.focus(); });
         actions.appendChild(button);
       });

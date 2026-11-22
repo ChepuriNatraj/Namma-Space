@@ -25,6 +25,27 @@ def array_to_rows(array):
     return ["".join("1" if v else "0" for v in row) for row in array]
 
 
+def backdrop_colours(xyz, rgb, opacity, floor_y):
+    solid = opacity > 0.4
+    backdrop = {}
+
+    def typical_colour(band):
+        return [int(round(255 * float(v))) for v in np.median(rgb[band], axis=0)]
+
+    floor_band = solid & (np.abs(xyz[:, 1] - floor_y) < 0.08)
+    if floor_band.sum() >= 500:
+        backdrop["floor"] = typical_colour(floor_band)
+    histogram, edges = np.histogram(xyz[solid, 1], bins=60, range=(floor_y + 2.0, floor_y + 3.5))
+    smooth = np.convolve(histogram, np.ones(3) / 3, mode="same")
+    peak = int(np.argmax(smooth))
+    ceiling_y = float(edges[peak] + 0.0125)
+    ceiling_band = solid & (np.abs(xyz[:, 1] - ceiling_y) < 0.1)
+    if smooth[peak] >= 200 and ceiling_band.sum() >= 500:
+        backdrop["ceiling"] = typical_colour(ceiling_band)
+        backdrop["ceilingY"] = round(ceiling_y, 3)
+    return backdrop
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ply", required=True)
@@ -101,6 +122,23 @@ def main():
     inside = float((labels[path] == main_region).mean())
     blocked |= labels != main_region
 
+    ceiling_height = float(world.get("ceiling_m", 2.4))
+    relative_y = xyz[:, 1] - floor_y
+    height_band = solid & (relative_y > 0.2) & (relative_y < ceiling_height + 0.1)
+    band_c = np.floor((xyz[height_band, 0] - ox) / cell).astype(int)
+    band_r = np.floor((xyz[height_band, 2] - oz) / cell).astype(int)
+    inside_grid = (band_c >= 0) & (band_r >= 0) & (band_c < cols) & (band_r < rows)
+    band_ids = band_r[inside_grid] * cols + band_c[inside_grid]
+    band_heights = relative_y[height_band][inside_grid]
+    order = np.argsort(band_ids, kind="stable")
+    band_ids, band_heights = band_ids[order], band_heights[order]
+    heights = np.zeros((rows, cols), np.int32)
+    for r, c in zip(*np.nonzero(occupied)):
+        first = np.searchsorted(band_ids, r * cols + c, side="left")
+        last = np.searchsorted(band_ids, r * cols + c, side="right")
+        if last - first >= args.obstacle_hits:
+            heights[r, c] = int(round(100 * min(np.percentile(band_heights[first:last], 95), ceiling_height)))
+
     start_c = int(np.floor((grid["start"]["x"] - ox) / cell))
     start_r = int(np.floor((grid["start"]["z"] - oz) / cell))
     print(f"         walkable cells: camera-path map {int((~sparse_blocked).sum())}, splat map {int((~splat_blocked).sum())}, combined {int((~blocked).sum())}")
@@ -113,6 +151,11 @@ def main():
     result = dict(grid)
     result["blocked"] = array_to_rows(blocked)
     result["occupied"] = array_to_rows(occupied)
+    result["heights"] = heights.tolist()
+    print(f"         obstacle heights recorded for {int((heights > 0).sum())} of {int(occupied.sum())} obstacle cells, tallest {heights.max() / 100:.2f} m")
+    base_colour = np.column_stack([vertices["f_dc_0"], vertices["f_dc_1"], vertices["f_dc_2"]]).astype(np.float64)
+    result["backdrop"] = backdrop_colours(xyz, np.clip(0.5 + 0.28209479177387814 * base_colour, 0.0, 1.0), opacity, floor_y)
+    print(f"         backdrop behind the splat (plain floor and ceiling fill): {result['backdrop']}")
     for target in args.out_grid:
         json.dump(result, open(target, "w"))
         print(f"         wrote {target}")
@@ -124,7 +167,7 @@ def main():
         for r in range(rows):
             for c in range(cols):
                 if occupied[r, c]:
-                    colour = (190, 70, 60)
+                    colour = (190, 70, 60) if heights[r, c] >= 180 or heights[r, c] == 0 else (232, 150, 80)
                 elif not blocked[r, c]:
                     colour = (60, 140, 90)
                 else:
