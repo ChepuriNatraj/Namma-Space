@@ -2,31 +2,36 @@
 
 Walk through a real room in your browser, built from one phone video.
 
-NammaSpace turns a walkthrough video into a 3D Gaussian splat and publishes it as a web page where you move with W A S D. Walls and furniture block you, so you can judge a space before you visit it. Built by Matrix (Chepuri Dathatreya) for IIT Techfest 2026.
-
+Built by Matrix (Chepuri Dathatreya) for IIT Techfest 2026.
 **Project page, live viewer, demo video and technical report:** https://namma-space-documentation.pages.dev/
 
 ## The problem
 
-Photos and videos of a space show it, but you cannot move through them, measure the gaps, or find the thing you came for. Dedicated 3D scanners can do more but cost too much for an ordinary home, shop or hall. Before you visit a place you want to know three things: what it looks like, whether you can walk through it, and where a particular thing is.
+Photos and videos show a space, but you cannot walk through them, check the gaps, or find the thing you came for. 3D scanners can, but they cost too much for an ordinary home, shop or hall.
 
-## What NammaSpace does about it
+## What NammaSpace does
 
-| Need | What we built |
-|---|---|
-| See the real space in 3D | One phone video becomes a 3D Gaussian splat of the room, published as a web page (no app, no install) |
-| Move through it | A first-person walk with W A S D. Walls and furniture block you, using a collision grid built from the camera path and the splat |
-| Find things | Named places (POIs) with typo-tolerant search, labels, an info card and pins on a live map |
-| Get there | An A* route on the same collision grid, drawn as a ribbon on the floor, with auto-walk or fly-to |
-| Do it for a new space quickly | A four-step pipeline: prepare the video, train, finish the website, then tag places in a small editor |
+- Turns **one phone video** into a 3D Gaussian splat of the real room, shown as a web page. Nothing to install.
+- Lets you **walk** it with W A S D. Walls and furniture stop you, using a collision grid built from the scan.
+- Lets you **search places** (TV, fridge, bed...) and shows them with labels, a card and pins on a live map.
+- Draws a **walkable route** to the place you pick and can walk or fly you there.
+- Runs as a repeatable **four-step pipeline**, so a new space takes one video and some tagging.
 
 Scenes so far: Room, Hallway and Bedroom, an early Bedroom, and a 4K Hallway and Bedroom scene with 14 tagged places.
 
+## Progress
+
+| When | What happened |
+|---|---|
+| Round 1 | Reconstruction and roaming submitted: abstract, demo video, web viewer and this repository. |
+| 10 Nov | Qualified for Round 2 (places, search and routes). |
+| After Round 1 | Training moved to free cloud GPUs with two notebooks, one for Google Colab and one for Kaggle. The lab GPU PC is no longer needed. |
+| After Round 1 | New 4K capture, trained to 29.1 dB PSNR. |
+| Round 2 | Points of interest, search, A* routes and a tagging tool (STEP 4) added to every scene. |
+
 ## Live demo
 
-Open **https://namma-space-documentation.pages.dev/**. The page has the demo video, the camera-path reconstructions and the live viewer for the Room scene, with links to the other scenes, the technical report, results and roadmap.
-
-Click the scene, then use **W A S D** to walk, **Shift** to run, **Space** to jump, the mouse to look, **Esc** to free the mouse, **R** to return to the door, **M** for the collision grid and **N** for the live map. Add `?debug` to the address for a performance panel.
+Open the project page above and click the Room scene. **W A S D** walk, **Shift** runs, **Space** jumps, **Esc** frees the mouse, **R** returns to the door, **M** shows the collision grid, **N** the live map, **/** searches places.
 
 ## How it works
 
@@ -76,8 +81,6 @@ flowchart TD
   class J,K web
 ```
 
-After the website is built, **STEP 4** (`namma_pipeline/STEP4_tag_places.bat`) is the one human step: open the editor, tag the places, save. It is described in the places section below.
-
 ### The same three stages on one machine or two
 
 The stages never change. Only where they run, and whether you carry a zip by hand, changes.
@@ -107,150 +110,94 @@ flowchart LR
 | Hand-off | none | a zip carried each way |
 | Why we used it | | the laptop GPU has 6 GB, and the lab GPU PC is shared |
 
-## Places, search and routes (points of interest)
+## Training on a free GPU (Colab and Kaggle)
 
-Walking around is only half the problem: a visitor also wants to find things. The viewer shows named places (points of interest, POIs), lets you search them, and draws a walkable route to the one you pick. The Hallway and Bedroom scene has six: TV, fridge, switchboard, mirror, bed and wardrobe. The 4K Hallway and Bedroom scene (`04_hallway_bedroom_4k/`, trained at PSNR 29.1 dB) has 14 places.
+Step 2 needs a GPU. Instead of owning one, you can train in a free cloud notebook. Both notebooks are in `namma_pipeline/remote/`:
+
+| Notebook | GPU | Where the data goes |
+|---|---|---|
+| `NAMMA_STEP2_colab.ipynb` | free Colab T4 | bundle zip in a Drive folder named `namma`; the result is saved back there |
+| `NAMMA_STEP2_kaggle.ipynb` | free Kaggle T4 (about 30 GPU hours a week) | bundle zip as a private Kaggle Dataset |
+
+The workflow is: run `STEP1_prepare_video.bat` on your computer, upload the bundle zip it makes, run the notebook (30,000 steps, about 25 minutes on a T4), download the result zip into `3_PUT_REMOTE_RESULT_HERE`, then run `STEP3_finish_and_open_website.bat`. Set `ITERS = 2000` in the notebook for a quick test.
+
+On the 4K scene both notebooks gave the same score (Kaggle 29.12 dB, Colab 29.12 dB), so results do not depend on the platform.
+
+## Places, search and routes
+
+The viewer shows named places (points of interest), searches them, and draws a walkable route to the one you pick. The route is A* on the same collision grid that stops you at walls, so it never crosses a blocked cell.
 
 | In the viewer | How |
 |---|---|
-| Find a place | press `/` (or Ctrl+K) and type; typos and other names such as "almirah" work |
-| Pick a place | click its label or its pin on the live map, or aim at the label and press `E` |
-| Go there | `G` walks you along the route, `F` flies there, `X` clears the route |
-| See the collision map | `M` (green = walkable, amber = safety margin, red = obstacle) |
+| Find a place | `/` or Ctrl+K and type; typos and other names such as "almirah" work |
+| Pick a place | click its label or its pin on the map, or aim and press `E` |
+| Go there | `G` walks the route, `F` flies there, `X` clears it |
 
-The route is A* on the same collision grid that stops you at walls, so it never crosses a blocked cell.
-
-**The data.** Each scene's places live in `site/assets/pois.json`, named by the `"pois"` key of `site/assets/manifest.json`. A scene without that key works exactly as before.
+**Data.** Places live in `site/assets/pois.json`, named by the `"pois"` key in `manifest.json`. A scene without that key works as before.
 
 ```json
 { "id": "fridge", "name": "Fridge", "aliases": ["refrigerator"], "category": "appliance",
   "x": -0.22, "y": 0.81, "z": -1.37, "description": "Refrigerator in the kitchen corner" }
 ```
 
-`x`, `y`, `z` are metres in the scene (`y` is height above the floor). An optional `"stand": {"x": 0, "z": 0}` fixes where a visitor stands to look at the place; without it the viewer picks a walkable spot about 1.2 m in front.
+`x`, `y`, `z` are metres (`y` is height). An optional `"stand": {"x": 0, "z": 0}` fixes where the visitor stands; otherwise the viewer picks a walkable spot about 1.2 m in front.
 
-**Adding places.**
-1. With the editor: run `namma_pipeline/STEP4_tag_places.bat`. It serves the scene at `localhost:8766/?edit=1`. Aim the centre dot at an object, press `T`, type its name, then press **Save to project**; the file is checked and written to `site/assets/pois.json`, and the old one is backed up. You can also open any scene with `?edit=1` and press **Download pois.json**.
-2. By hand: copy one entry in `pois.json`, change the `id`, name and numbers. The editor shows the coordinates under its dot, and the top-right panel shows where you are standing.
+**Tagging (STEP 4).** Run `namma_pipeline/STEP4_tag_places.bat`. It opens the scene at `localhost:8766/?edit=1`. Aim the dot at an object, press `T`, type a name, then **Save to project**. The file is checked, the old one is backed up, and `pois.json` is written. You can also edit `pois.json` by hand.
 
-**The code** (in `namma_pipeline/viewer_template/`, copied into every scene's `site/`):
+**Code** (`namma_pipeline/viewer_template/`): `nav.js` pathfinding, `poi.js` search and spatial index, `poi_ui.js` labels, search box, route and map pins, `poi_editor.js` the tagging tool, `main.js` the viewer.
 
-| File | Job |
-|---|---|
-| `nav.js` | A* pathfinding, snapping to reachable cells, path smoothing, line of sight |
-| `poi.js` | search scoring, the spatial bucket index, stand points, file checks |
-| `poi_ui.js` | labels, search box, info card, route ribbon, map pins, fly-to, auto-walk |
-| `poi_editor.js` | the `?edit=1` tagging tool |
-| `main.js` | the splat viewer; it calls the files above through four small hooks |
+**Tests.** `node --test "test/*.test.js"` runs 35 checks on the real grids and place files (Node.js 21 or newer).
 
-**Tests.** `node --test "test/*.test.js"` runs 35 checks on the real grids and `pois.json` (needs only Node.js 21 or newer).
+## Run it yourself
 
-## Three ways to use this repository
-
-| I want to | Do this |
-|---|---|
-| **Just look at the result** | Open the live demo above. Nothing to install. |
-| **Run a scene on my own computer** | `cd 01_room/site` then `python -m http.server 8766` and open http://localhost:8766/. On Windows, double-click `START_WINDOWS.bat` in that folder. |
-| **Rebuild a scene with the pipeline** | Follow "Rebuild on one computer" below. |
-
-## Rebuild on one computer
-
-A single script, `run_all.py`, runs the whole pipeline: video, camera positions, training, website.
-
-### 1. Requirements
-
-| Need | Detail |
-|---|---|
-| OS | Linux, or Windows with WSL2. Training is only proven on Linux. |
-| GPU | NVIDIA with 16 GB of GPU memory or more (we measured 14 to 16 GB at full 1080p) and a CUDA 12.x driver |
-| Disk | 20 GB free |
-| Tools on PATH | `ffmpeg` and `ffprobe`, COLMAP 3.9 or newer, `ns-train` and `ns-export` from nerfstudio |
-| Python 3 packages | `pip install -r requirements.txt`, and for training `pip install -r requirements-train.txt` after installing PyTorch for your CUDA version |
-
-Exact versions, measured GPU memory and the reasons are in [`docs/HARDWARE_AND_REMOTE_SETUP.md`](docs/HARDWARE_AND_REMOTE_SETUP.md).
-
-### 2. Check the machine
+- **Just look:** open the project page.
+- **View a scene locally:** `cd 01_room/site`, `python -m http.server 8766`, open http://localhost:8766/ (on Windows, double-click `START_WINDOWS.bat`).
+- **Rebuild a scene on one machine:**
 
 ```bash
-python run_all.py --check
+python run_all.py --check               # lists what is missing
+python run_all.py --test                # bundled sample, 1,000 steps, proves the chain in minutes
+python run_all.py --video my_walk.mp4   # your own video
 ```
 
-Lists each requirement as `ok` or `MISSING` with the fix, and does no work.
+One machine needs Linux (or WSL2), an NVIDIA GPU with 16 GB or more, CUDA 12.x, 20 GB of disk, `ffmpeg`, COLMAP 3.9+ and nerfstudio, plus `pip install -r requirements.txt` and `requirements-train.txt`. No such GPU? Use the notebooks above. Details, options and filming tips: [`docs/RUN_GUIDE.md`](docs/RUN_GUIDE.md) and [`docs/HARDWARE_AND_REMOTE_SETUP.md`](docs/HARDWARE_AND_REMOTE_SETUP.md).
 
-### 3. Try the test sample
-
-```bash
-python run_all.py --test
-```
-
-Uses the bundled sample in `test/sample_scene.zip` (40 frames, camera model and collision map already solved), trains for 1,000 steps instead of 30,000 and builds the website at http://localhost:8765/. It proves the chain works on your machine in minutes. The sample splat is rough on purpose.
-
-### 4. Run your own video
-
-```bash
-python run_all.py --video my_walkthrough.mp4
-```
-
-| Stage | What happens | Time on Room (613 frames) |
-|---|---|---|
-| 1. Prepare | sharp-frame picker, COLMAP camera poses, floor and scale, collision map | about 21 min (mostly COLMAP) |
-| 2. Train | 3D Gaussian splat with nerfstudio splatfacto, 30,000 steps | about 14 min on a large GPU |
-| 3. Finish | align, clean, compress to `.qsplat`, build the website and serve it | about 15 s |
-
-Options (training steps, profile, memory-saving flags, building from an existing result without a GPU) are listed in [`docs/RUN_GUIDE.md`](docs/RUN_GUIDE.md), together with how to film a good capture.
-
-### If you have a laptop and a separate GPU PC
-
-The two-machine route we used ourselves is described in [`docs/RUN_GUIDE.md`](docs/RUN_GUIDE.md) under "Option B". [`docs/HARDWARE_AND_REMOTE_SETUP.md`](docs/HARDWARE_AND_REMOTE_SETUP.md) explains why we split it and what that costs.
-
-### What is tested and what is not
-
-- STEP 1 and STEP 3 have run many times on Windows. The `run_all.py` requirement check and the STEP 3 build were run on the bundled sample.
-- STEP 2 (training) is proven in our two-machine setup on Linux. The one-machine `--test` run, which calls the same training script, has not yet been run on a separate clean GPU machine.
-- Native Windows training was not tried.
+Tested: STEP 1 and STEP 3 on Windows many times, STEP 2 on Linux and on Colab and Kaggle. Native Windows training was not tried, and `run_all.py --test` has not yet been run on a separate clean GPU machine.
 
 ## Results
 
-| Scene | Folder | Frames | Gaussians | PSNR | SSIM | LPIPS |
-|---|---|---:|---:|---:|---:|---:|
-| Room | [`01_room`](01_room) | 613 | 541,337 | 27.14 dB | 0.913 | 0.191 |
-| Hallway and Bedroom | [`02_hallway_bedroom`](02_hallway_bedroom) | 868 | 650,654 | 26.46 dB | 0.874 | 0.244 |
-| Early Bedroom | [`03_bedroom_early`](03_bedroom_early) | n/a | 700,000 shown | not evaluated | | |
+| Scene | Folder | Gaussians | PSNR | SSIM | LPIPS |
+|---|---|---:|---:|---:|---:|
+| Room | [`01_room`](01_room) | 541,337 | 27.14 dB | 0.913 | 0.191 |
+| Hallway and Bedroom | [`02_hallway_bedroom`](02_hallway_bedroom) | 650,654 | 26.46 dB | 0.874 | 0.244 |
+| Early Bedroom | [`03_bedroom_early`](03_bedroom_early) | 700,000 shown | not evaluated | | |
+| Hallway and Bedroom 4K | [`04_hallway_bedroom_4k`](04_hallway_bedroom_4k) | 393,733 | 29.12 dB | 0.912 | 0.144 |
 
-Scores are measured on frames held out from training. Settings and timings: [`01_room/notes/TRAINING_REPORT.md`](01_room/notes/TRAINING_REPORT.md). Each `site/` folder is a complete static website.
+Scores are measured on frames held out from training. Settings and timings: [`01_room/notes/TRAINING_REPORT.md`](01_room/notes/TRAINING_REPORT.md).
 
 ## Known limits
 
 - Ceilings and areas the camera barely saw are rough or dark.
-- Collision is a 2D floor grid. It stops you at walls and furniture but does not model stairs or overhangs.
+- Collision is a 2D floor grid. It does not model stairs or overhangs.
 - Scale assumes a fixed phone height, not a measured reference.
-- Points of interest and navigation between them are not built yet. The plan is on the [roadmap](https://namma-space-documentation.pages.dev/roadmap/).
+- Places are tagged by hand, so each new scene needs a person for STEP 4.
 
-The full list of problems we met and how we handled them is in section 10 of the [technical report](https://namma-space-documentation.pages.dev/report/).
+More in section 10 of the [technical report](https://namma-space-documentation.pages.dev/report/).
 
 ## Repository layout
 
 ```
 run_all.py             one command for the whole pipeline
-requirements.txt       Python packages for STEPs 1 and 3
-requirements-train.txt Python packages for STEP 2 (training)
-test/                  sample scene for run_all.py --test, navigation and POI tests
-01_room/               hero scene: site/ and training notes
-02_hallway_bedroom/    second scene, site/
-03_bedroom_early/      first scene, site/
-04_hallway_bedroom_4k/  4K scene, site/ and training notes
-home/                  the project overview page
-documentation_site/    project page, technical report, results and roadmap (demo videos are served from the deployed site)
+test/                  sample scene and navigation and place tests
+01_room/ ... 04_hallway_bedroom_4k/   one folder per scene (site/ and notes)
+home/                  project overview page
+documentation_site/    project page, technical report, results, roadmap
 deploy/                publishes all scenes as one Cloudflare Pages site
 namma_pipeline/
-  scripts/             pipeline code (frames, COLMAP, collision, splat cleanup, compression)
-  remote/              training scripts for a GPU machine, including the free Colab and Kaggle notebooks
+  scripts/             pipeline code
+  remote/              training scripts and the Colab and Kaggle notebooks
   viewer_template/     the web viewer every scene is built from
 docs/                  run guide, hardware, internals
 ```
 
-One video makes one scene and one website. Scenes are never mixed.
-
-## What is not in git
-
-Videos, frames, zips, COLMAP databases and `namma_pipeline/runs/` are ignored because they are large.
+One video makes one scene and one website. Videos, frames, zips, COLMAP databases and `namma_pipeline/runs/` are not in git because they are large.
