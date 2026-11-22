@@ -14,7 +14,7 @@ Click the scene, then use **W A S D** to walk, **Shift** to run, **Space** to ju
 
 ## Round 2: places, search and routes
 
-The viewer can show named places (points of interest), search them and draw a walkable route to one. The Hallway and Bedroom scene has six: TV, fridge, switchboard, mirror, bed and wardrobe.
+The viewer can show named places (points of interest), search them and draw a walkable route to one. The Hallway and Bedroom scene has six: TV, fridge, switchboard, mirror, bed and wardrobe. The 4K Hallway and Bedroom scene (`04_hallway_bedroom_4k/`, trained at PSNR 29.1 dB) has 14 places.
 
 | In the viewer | How |
 |---|---|
@@ -35,7 +35,7 @@ The route is A* on the same collision grid that stops you at walls, so it never 
 `x`, `y`, `z` are metres in the scene (`y` is height above the floor). An optional `"stand": {"x": 0, "z": 0}` fixes where a visitor stands to look at the place; without it the viewer picks a walkable spot about 1.2 m in front.
 
 **Adding places.**
-1. With the editor: open the scene with `?edit=1` at the end of the address, aim the centre dot at an object, press `T`, type its name, then press **Download pois.json** and put the file in `site/assets/`.
+1. With the editor: run `namma_pipeline/STEP4_tag_places.bat`. It serves the scene at `localhost:8766/?edit=1`. Aim the centre dot at an object, press `T`, type its name, then press **Save to project**; the file is checked and written to `site/assets/pois.json`, and the old one is backed up. You can also open any scene with `?edit=1` and press **Download pois.json**.
 2. By hand: copy one entry in `pois.json`, change the `id`, name and numbers. The editor shows the coordinates under its dot, and the top-right panel shows where you are standing.
 
 **The code** (in `namma_pipeline/viewer_template/`, copied into every scene's `site/`):
@@ -48,7 +48,7 @@ The route is A* on the same collision grid that stops you at walls, so it never 
 | `poi_editor.js` | the `?edit=1` tagging tool |
 | `main.js` | the splat viewer; it calls the files above through four small hooks |
 
-**Tests.** `node --test "test/*.test.js"` runs 23 checks on the real grids and `pois.json` (needs only Node.js 21 or newer).
+**Tests.** `node --test "test/*.test.js"` runs 35 checks on the real grids and `pois.json` (needs only Node.js 21 or newer).
 
 ## How it works
 
@@ -220,12 +220,13 @@ test/                  sample scene for run_all.py --test, navigation and POI te
 01_room/               hero scene: site/ and training notes
 02_hallway_bedroom/    second scene, site/
 03_bedroom_early/      first scene, site/
+04_hallway_bedroom_4k/  4K scene, site/ and training notes
 home/                  the project overview page
 documentation_site/    project page, technical report, results and roadmap (demo videos are served from the deployed site)
 deploy/                publishes all scenes as one Cloudflare Pages site
 namma_pipeline/
   scripts/             pipeline code (frames, COLMAP, collision, splat cleanup, compression)
-  remote/              training scripts for a GPU machine
+  remote/              training scripts for a GPU machine, including the free Colab and Kaggle notebooks
   viewer_template/     the web viewer every scene is built from
 docs/                  run guide, hardware, internals
 ```
