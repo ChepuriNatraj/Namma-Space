@@ -6,12 +6,6 @@ NammaSpace turns a walkthrough video into a 3D Gaussian splat and publishes it a
 
 **Project page, live viewer, demo video and technical report:** https://namma-space-documentation.pages.dev/
 
-## Live demo
-
-Open **https://namma-space-documentation.pages.dev/**. The page has the demo video, the camera-path reconstructions and the live viewer for the Room scene, with links to the other scenes, the technical report, results and roadmap.
-
-Click the scene, then use **W A S D** to walk, **Shift** to run, **Space** to jump, the mouse to look, **Esc** to free the mouse, **R** to return to the door, **M** for the collision grid and **N** for the live map. Add `?debug` to the address for a performance panel.
-
 ## The problem
 
 Photos and videos of a space show it, but you cannot move through them, measure the gaps, or find the thing you came for. Dedicated 3D scanners can do more but cost too much for an ordinary home, shop or hall. Before you visit a place you want to know three things: what it looks like, whether you can walk through it, and where a particular thing is.
@@ -27,6 +21,12 @@ Photos and videos of a space show it, but you cannot move through them, measure 
 | Do it for a new space quickly | A four-step pipeline: prepare the video, train, finish the website, then tag places in a small editor |
 
 Scenes so far: Room, Hallway and Bedroom, an early Bedroom, and a 4K Hallway and Bedroom scene with 14 tagged places.
+
+## Live demo
+
+Open **https://namma-space-documentation.pages.dev/**. The page has the demo video, the camera-path reconstructions and the live viewer for the Room scene, with links to the other scenes, the technical report, results and roadmap.
+
+Click the scene, then use **W A S D** to walk, **Shift** to run, **Space** to jump, the mouse to look, **Esc** to free the mouse, **R** to return to the door, **M** for the collision grid and **N** for the live map. Add `?debug` to the address for a performance panel.
 
 ## How it works
 
