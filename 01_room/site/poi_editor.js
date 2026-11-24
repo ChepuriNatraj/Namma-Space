@@ -174,7 +174,19 @@
       ui.say("Downloaded " + viewer.poiFile + ". Put it in the site's assets folder.", 6);
     }
 
-    [["Download " + viewer.poiFile, download], ["Copy JSON", function () { navigator.clipboard.writeText(exportJson()).then(function () { ui.say("JSON copied", 2); }); }], ["Discard draft", function () { localStorage.removeItem(draftKey); location.reload(); }]].forEach(function (spec) {
+    function saveToProject() {
+      fetch("/__save_pois", { method: "POST", headers: { "Content-Type": "application/json" }, body: exportJson() })
+        .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
+        .then(function (result) {
+          if (!result.ok) { ui.say("Not saved: " + result.body.errors.join("; "), 10); return; }
+          try { localStorage.removeItem(draftKey); } catch (error) { ui.say("Saved, but the old browser draft could not be cleared", 5); }
+          const warnings = result.body.warnings.length ? " (" + result.body.warnings.length + " warning(s) in the STEP 4 window)" : "";
+          ui.say("Saved " + result.body.saved + " places to the project" + warnings, 5);
+        })
+        .catch(function () { ui.say("No STEP 4 save server here. Use Download instead.", 6); });
+    }
+
+    [["Save to project", saveToProject], ["Download " + viewer.poiFile, download], ["Copy JSON", function () { navigator.clipboard.writeText(exportJson()).then(function () { ui.say("JSON copied", 2); }); }], ["Discard draft", function () { localStorage.removeItem(draftKey); location.reload(); }]].forEach(function (spec) {
       const button = el("button", "", spec[0]);
       button.type = "button"; button.addEventListener("click", spec[1]);
       foot.appendChild(button);

@@ -27,7 +27,8 @@
   var poiData = null, addon = { step: null, frame: null, minimap: null, keydown: null };
 
   function fail(msg) {
-    var e = document.getElementById("err"); e.hidden = false; e.textContent = msg;
+    var e = document.getElementById("err"); e.hidden = false;
+    e.textContent = location.protocol === "file:" ? "This page cannot load its files when opened from disk. Run python -m http.server in this folder, then open http://localhost:8000." : msg;
     document.getElementById("loadmsg").textContent = "Could not start";
   }
   function progress(f, msg) {
@@ -193,7 +194,7 @@
     g.setAttribute("color", new THREE.BufferAttribute(Cc, 3, true));
     g.setIndex(new THREE.BufferAttribute(F, 1));
     surface = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-    wire = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xD4B068, wireframe: true, transparent: true, opacity: 0.35, depthTest: true }));
+    wire = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x94A3B8, wireframe: true, transparent: true, opacity: 0.35, depthTest: true }));
     surface.frustumCulled = false; wire.frustumCulled = false; wire.renderOrder = 2; surface.renderOrder = 1;
     scene.add(surface); scene.add(wire);
   }
@@ -206,7 +207,12 @@
         occupied[r * cols + c] = json.occupied[r].charCodeAt(c) === 49 ? 1 : 0;
       }
     }
-    grid = { cell: json.cell, ox: json.originX, oz: json.originZ, cols: cols, rows: rows, blocked: blocked, occupied: occupied, floorY: json.floorY, eye: json.eyeHeight, start: json.start };
+    var heights = null;
+    if (json.heights) {
+      heights = new Float32Array(cols * rows);
+      for (var hr = 0; hr < rows; hr++) for (var hc = 0; hc < cols; hc++) heights[hr * cols + hc] = (json.heights[hr][hc] || 0) / 100;
+    }
+    grid = { cell: json.cell, ox: json.originX, oz: json.originZ, cols: cols, rows: rows, blocked: blocked, occupied: occupied, heights: heights, floorY: json.floorY, eye: json.eyeHeight, start: json.start };
   }
 
   function isBlocked(x, z) {
@@ -215,7 +221,7 @@
     return grid.blocked[r * grid.cols + c] === 1;
   }
 
-  var WALKMAP = { walkable: 0x2fbf71, margin: 0xf2a93b, obstacle: 0xe5484d, marginReach: 4, fenceHeight: 0.45 };
+  var WALKMAP = { walkable: 0xE5E7EB, margin: 0xFBBF24, obstacle: 0xF87171, marginReach: 4, fenceHeight: 0.45 };
 
   function cellClasses() {
     var cols = grid.cols, rows = grid.rows, data = new Uint8Array(cols * rows * 4), reach = WALKMAP.marginReach;
@@ -262,9 +268,9 @@
         "  vec2 edge = abs(fract(vCell - 0.5) - 0.5) / fwidth(vCell);",
         "  float line = 1.0 - clamp(min(edge.x, edge.y), 0.0, 1.0);",
         "  float fade = clamp(1.5 - 0.5 * max(fwidth(vCell.x), fwidth(vCell.y)) * 6.0, 0.0, 1.0);",
-        "  vec3 color = uWalkable; float fill = 0.20; float rule = 0.38;",
-        "  if (kind > 2.5) { color = uObstacle; fill = 0.30; rule = 0.30; }",
-        "  else if (kind > 1.5) { color = uMargin; fill = 0.10 + 0.14 * step(0.5, fract((vCell.x + vCell.y) * 0.5)); rule = 0.0; }",
+        "  vec3 color = uWalkable; float fill = 0.10; float rule = 0.22;",
+        "  if (kind > 2.5) { color = uObstacle; fill = 0.24; rule = 0.24; }",
+        "  else if (kind > 1.5) { color = uMargin; fill = 0.06 + 0.26 * step(0.5, fract((vCell.x + vCell.y) * 1.5)); rule = 0.0; }",
         "  gl_FragColor = vec4(color, fill + rule * line * fade);",
         "}"
       ].join("\n")
@@ -273,17 +279,18 @@
     return m;
   }
 
-  function boundaryEdges(cells) {
+  function boundaryEdges(cells, tagged) {
     var cell = grid.cell, edges = [];
     function filled(c, r) { return c >= 0 && r >= 0 && c < grid.cols && r < grid.rows && cells[r * grid.cols + c] === 1; }
     for (var r = 0; r < grid.rows; r++) {
       for (var c = 0; c < grid.cols; c++) {
         if (!filled(c, r)) continue;
         var x0 = grid.ox + c * cell, z0 = grid.oz + r * cell, x1 = x0 + cell, z1 = z0 + cell;
-        if (!filled(c, r - 1)) edges.push(x0, z0, x1, z0);
-        if (!filled(c, r + 1)) edges.push(x0, z1, x1, z1);
-        if (!filled(c - 1, r)) edges.push(x0, z0, x0, z1);
-        if (!filled(c + 1, r)) edges.push(x1, z0, x1, z1);
+        var tag = tagged ? [r * grid.cols + c] : [];
+        if (!filled(c, r - 1)) edges.push.apply(edges, [x0, z0, x1, z0].concat(tag));
+        if (!filled(c, r + 1)) edges.push.apply(edges, [x0, z1, x1, z1].concat(tag));
+        if (!filled(c - 1, r)) edges.push.apply(edges, [x0, z0, x0, z1].concat(tag));
+        if (!filled(c + 1, r)) edges.push.apply(edges, [x1, z0, x1, z1].concat(tag));
       }
     }
     return edges;
@@ -298,10 +305,11 @@
     return m;
   }
 
-  function fenceLayer(cells, color, height) {
-    var edges = boundaryEdges(cells), y0 = grid.floorY + 0.01, y1 = y0 + height, walls = [], rise = [];
-    for (var i = 0; i < edges.length; i += 4) {
+  function fenceLayer(cells, color, height, heights) {
+    var tagged = !!heights, stride = tagged ? 5 : 4, edges = boundaryEdges(cells, tagged), y0 = grid.floorY + 0.01, walls = [], rise = [];
+    for (var i = 0; i < edges.length; i += stride) {
       var ax = edges[i], az = edges[i + 1], bx = edges[i + 2], bz = edges[i + 3];
+      var y1 = y0 + (tagged && heights[edges[i + 4]] > 0 ? heights[edges[i + 4]] : height);
       walls.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
       rise.push(0, 0, 1, 0, 1, 1);
     }
@@ -322,14 +330,17 @@
     var walkable = new Uint8Array(grid.blocked.length);
     for (var i = 0; i < walkable.length; i++) walkable[i] = grid.blocked[i] ? 0 : 1;
     gridFloor = floorLayer();
-    gridOutline = outlineLayer(walkable, 0xd9ffe9, 0.9, 0.012);
+    gridOutline = outlineLayer(walkable, 0xE5E7EB, 0.7, 0.012);
     gridOccupied = new THREE.Group();
-    gridOccupied.add(fenceLayer(grid.occupied, WALKMAP.obstacle, WALKMAP.fenceHeight));
-    gridOccupied.add(outlineLayer(grid.occupied, 0xffb3b5, 0.85, 0.012));
+    gridOccupied.add(fenceLayer(grid.occupied, WALKMAP.obstacle, WALKMAP.fenceHeight, grid.heights));
+    gridOccupied.add(outlineLayer(grid.occupied, 0xFCA5A5, 0.8, 0.012));
     scene.add(gridFloor); scene.add(gridOutline); scene.add(gridOccupied);
   }
 
   var miniPanel = document.getElementById("minimap"), miniCanvas = document.getElementById("minimapCanvas"), miniCtx = miniCanvas.getContext("2d"), mini = null;
+  var mapBtn = document.getElementById("mapBtn");
+  function setMiniHidden(hidden) { miniPanel.hidden = hidden; mapBtn.setAttribute("aria-pressed", hidden ? "false" : "true"); }
+  mapBtn.addEventListener("click", function () { if (mini) setMiniHidden(!miniPanel.hidden); canvas.focus(); });
 
   function buildMinimap() {
     var minC = grid.cols, maxC = -1, minR = grid.rows, maxR = -1, pad = 3;
@@ -347,14 +358,14 @@
     for (var rr = minR; rr <= maxR; rr++) {
       for (var cc = minC; cc <= maxC; cc++) {
         var i = rr * grid.cols + cc, x = offX + (cc - minC) * scale, y = offY + (rr - minR) * scale;
-        if (!grid.blocked[i]) b.fillStyle = "rgba(212, 176, 104, 0.45)";
-        else if (grid.occupied[i]) b.fillStyle = "rgba(200, 100, 60, 0.26)";
-        else b.fillStyle = "rgba(150, 160, 230, 0.07)";
+        if (!grid.blocked[i]) b.fillStyle = "rgba(229, 231, 235, 0.32)";
+        else if (grid.occupied[i]) b.fillStyle = "rgba(248, 113, 113, 0.3)";
+        else b.fillStyle = "rgba(148, 163, 184, 0.06)";
         b.fillRect(x, y, Math.ceil(scale), Math.ceil(scale));
       }
     }
     mini = { base: base, minC: minC, minR: minR, scale: scale, offX: offX, offY: offY, size: size };
-    miniPanel.hidden = false;
+    setMiniHidden(window.matchMedia("(pointer: coarse)").matches && !embedMode);
   }
 
   function miniPoint(x, z) {
@@ -375,7 +386,7 @@
     miniCtx.beginPath(); miniCtx.moveTo(px, py); miniCtx.arc(px, py, reach, heading - half, heading + half); miniCtx.closePath(); miniCtx.fill();
     miniCtx.beginPath(); miniCtx.arc(px, py, mini.size * 0.022, 0, Math.PI * 2);
     miniCtx.fillStyle = "#ffffff"; miniCtx.fill();
-    miniCtx.lineWidth = mini.size * 0.012; miniCtx.strokeStyle = "#B8944A"; miniCtx.stroke();
+    miniCtx.lineWidth = mini.size * 0.012; miniCtx.strokeStyle = "#38BDF8"; miniCtx.stroke();
   }
 
   var guide = document.getElementById("guide");
@@ -394,7 +405,20 @@
     canvas.focus();
   }
   document.getElementById("guideGo").addEventListener("click", closeGuide);
-  document.getElementById("guideBtn").addEventListener("click", openGuide);
+  var settings = document.getElementById("settings"), settingsBtn = document.getElementById("settingsBtn");
+  function openSettings() {
+    if (document.pointerLockElement) document.exitPointerLock();
+    settings.hidden = false;
+    document.getElementById("settingsClose").focus();
+  }
+  function closeSettings() {
+    settings.hidden = true;
+    settingsBtn.focus();
+  }
+  settingsBtn.addEventListener("click", openSettings);
+  document.getElementById("settingsClose").addEventListener("click", closeSettings);
+  settings.addEventListener("pointerdown", function (e) { if (e.target === settings) closeSettings(); });
+  document.getElementById("guideBtn").addEventListener("click", function () { settings.hidden = true; openGuide(); });
 
   function applyMode() {
     if (mode === "mesh" && !surface) mode = "splat";
@@ -430,9 +454,10 @@
   function held(a, b) { return keys[a] || (b && keys[b]); }
   window.addEventListener("keydown", function (e) {
     if (!guide.hidden) { if (e.code === "Enter" || e.code === "Escape") closeGuide(); return; }
+    if (!settings.hidden) { if (e.code === "Escape") closeSettings(); return; }
     if (addon.keydown && addon.keydown(e)) return;
     keys[e.code] = true;
-    if (e.code === "KeyN" && mini) miniPanel.hidden = !miniPanel.hidden;
+    if (e.code === "KeyN" && mini) setMiniHidden(!miniPanel.hidden);
     if (e.code === "Digit1") setMode("splat");
     if (e.code === "Digit2") setMode("mesh");
     if (e.code === "KeyM") toggleDebug();
@@ -443,7 +468,6 @@
   window.addEventListener("blur", function () { keys = {}; });
 
   var dragging = false, moved = 0, locked = false;
-  var hint = document.getElementById("hint");
   canvas.addEventListener("pointerdown", function (e) { dragging = true; moved = 0; try { canvas.setPointerCapture(e.pointerId); } catch (x) {} canvas.focus(); });
   canvas.addEventListener("pointerup", function (e) {
     dragging = false;
@@ -456,7 +480,7 @@
     yaw -= dx * 0.0032; pitch -= dy * 0.0032; pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
   });
   document.addEventListener("pointerlockchange", function () {
-    locked = document.pointerLockElement === canvas; canvas.classList.toggle("locked", locked); hint.hidden = locked;
+    locked = document.pointerLockElement === canvas; canvas.classList.toggle("locked", locked); document.body.classList.toggle("mouse-locked", locked);
   });
 
   var renderScale = embedMode ? 0.85 : 1;
@@ -474,11 +498,29 @@
     if (!isBlocked(x, nz)) { camera.position.z = nz; }
   }
 
+  var stick = { x: 0, y: 0 };
+  (function () {
+    var base = document.getElementById("stick"), knob = base.firstElementChild, active = null, RADIUS = 36, DEAD_ZONE = 0.12;
+    function point(e) {
+      var r = base.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      var len = Math.hypot(dx, dy) || 1, k = Math.min(1, len / RADIUS);
+      stick.x = k < DEAD_ZONE ? 0 : dx / len * k; stick.y = k < DEAD_ZONE ? 0 : -dy / len * k;
+      knob.style.transform = "translate(" + (dx / len * k * RADIUS).toFixed(1) + "px," + (dy / len * k * RADIUS).toFixed(1) + "px)";
+    }
+    function release() { active = null; stick.x = 0; stick.y = 0; knob.style.transform = ""; }
+    base.addEventListener("pointerdown", function (e) { active = e.pointerId; base.setPointerCapture(e.pointerId); point(e); });
+    base.addEventListener("pointermove", function (e) { if (e.pointerId === active) point(e); });
+    base.addEventListener("pointerup", release);
+    base.addEventListener("pointercancel", release);
+    base.addEventListener("lostpointercapture", release);
+  })();
+
   var jumpHeight = 0, jumpSpeed = 0;
   function stepWalk(dt, input) {
-    var ahead = (input.forward ? 1 : 0) - (input.back ? 1 : 0), side = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    var analog = input.stickX || input.stickY;
+    var ahead = analog ? input.stickY : (input.forward ? 1 : 0) - (input.back ? 1 : 0), side = analog ? input.stickX : (input.right ? 1 : 0) - (input.left ? 1 : 0);
     if (ahead || side) {
-      var len = Math.sqrt(ahead * ahead + side * side), dist = (input.run ? RUN_SPEED : WALK_SPEED) * dt;
+      var len = Math.sqrt(ahead * ahead + side * side), dist = (input.run ? RUN_SPEED : WALK_SPEED) * Math.min(1, len) * dt;
       var fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
       var vx = (fx * ahead + rx * side) / len, vz = (fz * ahead + rz * side) / len;
       var steps = Math.max(1, Math.ceil(dist / MAX_STEP)), each = dist / steps;
@@ -498,8 +540,9 @@
     var jsStart = performance.now();
     var dt = Math.min((now - last) / 1000, 0.1); last = now;
     var input = {
-      forward: held("KeyW", "ArrowUp"), back: held("KeyS", "ArrowDown"), left: held("KeyA", "ArrowLeft"), right: held("KeyD", "ArrowRight"),
-      run: held("ShiftLeft", "ShiftRight"), jump: held("Space")
+      forward: held("KeyW", "ArrowUp") || stick.y > 0.2, back: held("KeyS", "ArrowDown") || stick.y < -0.2,
+      left: held("KeyA", "ArrowLeft") || stick.x < -0.2, right: held("KeyD", "ArrowRight") || stick.x > 0.2,
+      run: held("ShiftLeft", "ShiftRight"), jump: held("Space"), stickX: stick.x, stickY: stick.y
     };
     if (addon.step) input = addon.step(dt, input) || input;
     stepWalk(dt, input);
@@ -518,7 +561,7 @@
     drawMinimap();
     frames++;
     if (now - fpsT > 500) {
-      document.getElementById("fps").textContent = Math.round(frames * 1000 / (now - fpsT));
+      var fpsNow = Math.round(frames * 1000 / (now - fpsT)); document.getElementById("fps").textContent = fpsNow; document.getElementById("fpsTopVal").textContent = fpsNow;
       document.getElementById("pos").textContent = "x " + camera.position.x.toFixed(2) + "  y " + camera.position.y.toFixed(2) + "  z " + camera.position.z.toFixed(2) + " m";
       if (perfOn) {
         var span = now - fpsT;
@@ -573,8 +616,8 @@
   }
   function showTune(message) {
     var el = document.createElement("div");
-    el.className = "panel"; el.style.cssText = "left:50%;bottom:128px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));z-index:4;font-size:13px;text-align:center;pointer-events:none";
-    el.textContent = message; document.body.appendChild(el);
+    el.className = "panel notice"; el.textContent = message;
+    document.getElementById("dock").prepend(el);
     setTimeout(function () { el.remove(); }, 9000);
   }
   function scheduleAutoTune() {
@@ -589,7 +632,7 @@
         var step = ladder[rung++];
         if (step[0] < limit) setDetail(step[0]);
         renderScale = step[1]; resize();
-        showTune("Slow graphics detected, so quality was lowered (" + Math.round(limit / 1000) + "k splats, " + Math.round(step[1] * 100) + "% resolution) for smoother movement. Use the Detail buttons to change it. Choosing the high-performance GPU in your system graphics settings fixes this properly.");
+        showTune("Slow graphics detected. Quality was lowered to " + Math.round(limit / 1000) + "k splats at " + Math.round(step[1] * 100) + "% resolution. Change it in Settings under Detail.");
         tuneTimer = setTimeout(round, 1500);
       });
     }
@@ -612,7 +655,7 @@
   }).then(function () {
     progress(0.95, "Loading mesh"); return manifest.mesh ? fetchBuf(ASSETS + manifest.mesh) : null;
   }).then(function (mb) {
-    if (mb) buildMesh(mb); else document.querySelector('[data-mode="mesh"]').hidden = true;
+    if (mb) buildMesh(mb); else { document.querySelector('[data-mode="mesh"]').hidden = true; document.getElementById("viewField").hidden = true; }
     buildGridOverlay();
     buildMinimap();
     var detail = parseInt(q.get("detail") || "0", 10);
