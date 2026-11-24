@@ -3,7 +3,8 @@
 Walk through a real room in your browser, built from one phone video.
 
 Built by Matrix (Chepuri Dathatreya) for IIT Techfest 2026.
-**Project page, live viewer, demo video and technical report:** https://namma-space-documentation.pages.dev/
+**Live web app (Round 2, places, search and routes):** https://namma-space.pages.dev/
+**Round 1 project page, demo video and technical report:** https://namma-space-documentation.pages.dev/
 
 ## The problem
 
@@ -17,7 +18,7 @@ Photos and videos show a space, but you cannot walk through them, check the gaps
 - Draws a **walkable route** to the place you pick and can walk or fly you there.
 - Runs as a repeatable **four-step pipeline**, so a new space takes one video and some tagging.
 
-Scenes so far: Room, Hallway and Bedroom, an early Bedroom, and a 4K Hallway and Bedroom scene with 14 tagged places.
+Scenes so far: Room, Hallway and Bedroom, an early Bedroom, and a 4K Hallway and Bedroom scene with 15 tagged places.
 
 ## Progress
 
@@ -31,7 +32,7 @@ Scenes so far: Room, Hallway and Bedroom, an early Bedroom, and a 4K Hallway and
 
 ## Live demo
 
-Open the project page above and click the Room scene. **W A S D** walk, **Shift** runs, **Space** jumps, **Esc** frees the mouse, **R** returns to the door, **M** shows the collision grid, **N** the live map, **/** searches places.
+Open the 4K scene with places at https://namma-space.pages.dev/hallway-4k/, or pick any scene from https://namma-space.pages.dev/. **W A S D** walk, **Shift** runs, **Space** jumps, **Esc** frees the mouse, **R** returns to the door, **M** shows the collision grid, **N** the live map, **/** searches places.
 
 ## How it works
 

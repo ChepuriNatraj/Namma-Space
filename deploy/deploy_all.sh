@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-out="$root/tmp/wrangler_run/site_landing"
+out="$root/tmp/wrangler_run/site_landing_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$out"
-cp -r "$root/home/." "$out/"
-mkdir -p "$out/room" "$out/hallway" "$out/bedroom"
-cp -r "$root/01_room/site/." "$out/room/"
-cp -r "$root/02_hallway_bedroom/site/." "$out/hallway/"
-cp -r "$root/03_bedroom_early/site/." "$out/bedroom/"
+copy_site() {
+  mkdir -p "$2"
+  (cd "$1" && tar cf - --exclude=__pycache__ --exclude=serve.py --exclude=START_WINDOWS.bat --exclude=README_RUN.txt .) | (cd "$2" && tar xf -)
+}
+copy_site "$root/home" "$out"
+copy_site "$root/01_room/site" "$out/room"
+copy_site "$root/02_hallway_bedroom/site" "$out/hallway"
+copy_site "$root/03_bedroom_early/site" "$out/bedroom"
+copy_site "$root/04_hallway_bedroom_4k/site" "$out/hallway-4k"
 cd "$root/tmp/wrangler_run"
-npx wrangler pages deploy site_landing --project-name namma-space --branch main --commit-dirty=true
+npx wrangler pages deploy "$(basename "$out")" --project-name namma-space --branch main --commit-dirty=true
