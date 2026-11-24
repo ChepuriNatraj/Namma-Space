@@ -590,7 +590,10 @@
 
   function startPois() {
     var editing = q.get("edit") === "1";
-    if (!window.NammaPoiUI || (!poiData && !editing)) return;
+    if (!window.NammaPoiUI || (!poiData && !editing)) {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-places]"), function (el) { el.hidden = true; });
+      return;
+    }
     window.NammaPoiUI.start({
       scene: scene, camera: camera, canvas: canvas, grid: grid, addon: addon, data: poiData, editing: editing,
       poiFile: manifest.pois || "pois.json", walkSpeed: WALK_SPEED, miniCanvas: miniCanvas,

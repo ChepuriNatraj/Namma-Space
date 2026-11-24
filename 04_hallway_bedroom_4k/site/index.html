@@ -73,6 +73,12 @@ kbd { font: 500 var(--text-s) var(--font); color: var(--fg); border: 1px solid v
 #stick i { position: absolute; left: 36px; top: 36px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); }
 @media (pointer: coarse) { #stick { display: block; } #fpsTop { display: none; } .btn kbd { display: none; } }
 @media (min-width: 721px) and (pointer: fine) { #dock { left: auto; right: var(--space-4); transform: none; width: 400px; } }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  #stick { position: fixed; left: max(var(--space-4), env(safe-area-inset-left)); bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  #dock { left: auto; right: max(var(--space-4), env(safe-area-inset-right)); transform: none; width: min(400px, calc(100% - 176px)); }
+  #dock .poi-card { max-height: calc(100dvh - 96px); overflow: auto; }
+  #dock .poi-nearby { display: none; }
+}
 #controls { display: none; position: fixed; left: var(--space-4); bottom: var(--space-4); max-width: 420px; flex-wrap: wrap; gap: var(--space-1) var(--space-4); color: var(--muted); font-size: var(--text-m); pointer-events: none; }
 #controls kbd + kbd { margin-left: var(--space-1); }
 @media (min-width: 901px) and (pointer: fine) { #controls { display: flex; } }
@@ -142,7 +148,7 @@ html.embed #dock { width: min(440px, calc(100% - 128px)); padding-bottom: var(--
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
-<link rel="stylesheet" href="poi.css?v=20261121d">
+<link rel="stylesheet" href="poi.css?v=20261124b">
 </head>
 <body>
 <canvas id="stage" tabindex="0"></canvas>
@@ -172,7 +178,7 @@ html.embed #dock { width: min(440px, calc(100% - 128px)); padding-bottom: var(--
   <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
   <span><kbd>Shift</kbd> run</span>
   <span><kbd>Space</kbd> jump</span>
-  <span><kbd>/</kbd> find a place</span>
+  <span data-places><kbd>/</kbd> find a place</span>
   <span><kbd>M</kbd> walkable map</span>
   <span><kbd>R</kbd> back to door</span>
 </div>
@@ -221,7 +227,7 @@ html.embed #dock { width: min(440px, calc(100% - 128px)); padding-bottom: var(--
     <div class="steps">
       <div class="step"><b>Walk</b><span>Keyboard: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys. Touch: use the joystick.</span></div>
       <div class="step"><b>Look</b><span>Mouse: click the scene, then move the mouse. <kbd>Esc</kbd> releases it. Touch: drag the scene.</span></div>
-      <div class="step"><b>Find a place</b><span>Press <kbd>/</kbd> or choose Find a place. Pick a result, then Walk there or Fly there.</span></div>
+      <div class="step" data-places><b>Find a place</b><span>Press <kbd>/</kbd> or choose Find a place. Pick a result, then Walk there or Fly there.</span></div>
       <div class="step"><b>Other keys</b><span><kbd>Shift</kbd> runs, <kbd>Space</kbd> jumps, <kbd>R</kbd> returns to the door, <kbd>M</kbd> shows the walkable map, <kbd>N</kbd> the live map.</span></div>
     </div>
     <div class="actions"><small>Open this again from Settings.</small><button type="button" class="btn primary" id="guideGo">Got it</button></div>
@@ -231,10 +237,10 @@ html.embed #dock { width: min(440px, calc(100% - 128px)); padding-bottom: var(--
 <div id="loading"><div class="ld"><p class="ldbrand">NammaSpace</p><p id="loadmsg">Loading scene</p><div id="bar"><i id="barfill"></i></div><p id="loadpct">0%</p><p id="err" hidden></p></div></div>
 
 <script src="vendor/three.min.js"></script>
-<script src="nav.js?v=20261121d"></script>
-<script src="poi.js?v=20261121d"></script>
-<script src="poi_ui.js?v=20261121d"></script>
-<script src="poi_editor.js?v=20261121d"></script>
-<script src="main.js?v=20261121d"></script>
+<script src="nav.js?v=20261124b"></script>
+<script src="poi.js?v=20261124b"></script>
+<script src="poi_ui.js?v=20261124b"></script>
+<script src="poi_editor.js?v=20261124b"></script>
+<script src="main.js?v=20261124b"></script>
 </body>
 </html>
