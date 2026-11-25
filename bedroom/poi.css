@@ -1,0 +1,82 @@
+.poi-labels { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.poi-label { position: absolute; left: 0; top: 0; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; will-change: transform; font: 600 var(--text-s) var(--font); color: var(--fg); }
+.poi-label > span { position: absolute; left: 0; }
+.poi-label .pin { top: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--c); border: 2px solid var(--fg); box-sizing: border-box; }
+.poi-label .stem { top: -20px; width: 2px; height: 16px; margin-left: -1px; background: var(--fg); opacity: 0.7; }
+.poi-label .name { top: -20px; transform: translate(-50%, -100%); white-space: nowrap; padding: var(--space-1) var(--space-2); border-radius: 4px; background: var(--surface); border: 1px solid var(--c); }
+.poi-label:hover .name, .poi-label.aim .name { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.poi-label.aim .name::after { content: "E"; margin-left: var(--space-2); padding: 0 var(--space-1); border-radius: 4px; background: var(--bg); color: var(--fg); font-weight: 500; }
+.poi-label.selected .name { background: var(--c); color: var(--bg); border-color: var(--fg); }
+.poi-label.selected .pin { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+.poi-label.dim { opacity: 0.42; }
+.poi-label.far .name, .poi-label.far .stem { display: none; }
+@media (pointer: coarse) {
+  .poi-label::before { content: ""; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; }
+  .poi-label.aim .name::after { display: none; }
+}
+
+.poi-cross { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--fg); outline: 1px solid var(--bg); pointer-events: none; }
+
+.poi-status { text-align: center; z-index: 3; }
+
+.poi-card { display: grid; gap: var(--space-3); }
+.poi-card h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; line-height: 1.25; }
+.poi-card p { margin: 0; }
+.poi-card-head { display: flex; justify-content: space-between; align-items: center; }
+.poi-tag { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-m); color: var(--muted); text-transform: capitalize; }
+.poi-tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.poi-close { min-height: var(--target); padding: 0 var(--space-4); font: 500 var(--text-m) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; touch-action: manipulation; }
+.poi-close:hover { border-color: var(--accent); }
+@media (pointer: fine) { .poi-close { min-height: 32px; padding: 0 var(--space-3); } }
+.poi-description { color: var(--muted); font-size: var(--text-m); line-height: 1.5; }
+.poi-distance { font-size: var(--text-m); font-weight: 500; color: var(--fg); }
+.poi-actions { display: flex; gap: var(--space-2); }
+.poi-actions .btn { flex: 1; white-space: nowrap; }
+.poi-nearby { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.poi-nearby span { font-size: var(--text-m); color: var(--muted); }
+.poi-nearby button, .poi-chips button { min-height: 32px; padding: 0 var(--space-3); font: 500 var(--text-m) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; touch-action: manipulation; }
+.poi-nearby button:hover, .poi-chips button:hover { border-color: var(--accent); }
+@media (pointer: coarse) { .poi-nearby button, .poi-chips button { min-height: var(--target); min-width: var(--target); } }
+@media (pointer: coarse) and (max-width: 720px) { .poi-nearby { display: none; } }
+body.poi-editing .poi-card { display: none; }
+
+.poi-palette { position: fixed; inset: 0; z-index: 7; display: grid; justify-items: center; align-content: start; background: var(--scrim); }
+.poi-box { box-sizing: border-box; width: 100%; height: 100%; height: 100dvh; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: var(--space-3); padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4) max(var(--space-4), env(safe-area-inset-bottom)); border: 0; border-radius: 0; }
+.poi-search-row { display: flex; gap: var(--space-2); }
+.poi-input { flex: 1; min-width: 0; box-sizing: border-box; min-height: 48px; font: 400 var(--text-l) var(--font); color: var(--fg); background: var(--bg); border: 1px solid var(--edge); border-radius: var(--radius); padding: 0 var(--space-3); }
+.poi-input:focus { border-color: var(--accent); }
+.poi-search-row button { min-height: 48px; padding: 0 var(--space-4); font: 500 var(--text-m) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; }
+.poi-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.poi-chips button { text-transform: capitalize; }
+.poi-chips button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.poi-results { display: grid; gap: var(--space-1); align-content: start; overflow: auto; }
+.poi-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); width: 100%; min-height: 56px; box-sizing: border-box; text-align: left; font: inherit; color: var(--fg); background: none; border: 0; border-radius: var(--radius); padding: var(--space-2) var(--space-3); cursor: pointer; }
+.poi-row[aria-selected="true"] { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.poi-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.poi-row-text { display: grid; min-width: 0; }
+.poi-row-text b { font-weight: 600; font-size: var(--text-l); }
+.poi-row-text small { color: var(--muted); font-size: var(--text-m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poi-row-metres { font-size: var(--text-m); color: var(--muted); white-space: nowrap; }
+.poi-empty { padding: var(--space-4) var(--space-3); color: var(--muted); font-size: var(--text-m); }
+.poi-hint { font-size: var(--text-s); color: var(--muted); }
+@media (pointer: coarse) { .poi-hint { display: none; } }
+@media (min-width: 721px) {
+  .poi-palette { padding: 12vh var(--space-4) 0; align-content: start; }
+  .poi-box { width: min(540px, 100%); height: auto; max-height: 76vh; border: 1px solid var(--line); border-radius: var(--radius-sheet); }
+}
+
+.poi-editor { position: fixed; right: var(--space-4); top: calc(var(--space-3) + var(--target) + var(--space-2)); z-index: 3; width: min(280px, calc(100vw - 32px)); max-height: calc(100dvh - 160px); overflow: auto; display: grid; gap: var(--space-2); }
+.poi-editor-title { font-size: var(--text-l); font-weight: 600; }
+.poi-editor-hint { margin: 0; color: var(--muted); font-size: var(--text-s); line-height: 1.5; }
+.poi-editor-aim { font-size: var(--text-s); color: var(--muted); }
+.poi-editor-list, .poi-editor-actions, .poi-editor-foot { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.poi-editor button { min-height: 32px; padding: 0 var(--space-2); font: 500 var(--text-s) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; }
+.poi-editor button:hover { border-color: var(--accent); }
+.poi-editor-list button { border-left: 3px solid var(--c); }
+.poi-editor-list button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+.poi-editor-form { display: grid; gap: var(--space-2); }
+.poi-editor-form:empty { display: none; }
+.poi-editor label { display: grid; gap: var(--space-1); font-size: var(--text-s); color: var(--muted); }
+.poi-editor input { font: 400 var(--text-m) var(--font); color: var(--fg); background: var(--bg); border: 1px solid var(--edge); border-radius: 4px; padding: var(--space-1) var(--space-2); min-width: 0; }
+.poi-editor-xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.poi-editor-foot { padding-top: var(--space-2); border-top: 1px solid var(--line); }

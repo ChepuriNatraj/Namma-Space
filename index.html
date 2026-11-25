@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NammaSpace | Walkable digital twins from phone video</title>
+<meta name="description" content="NammaSpace rebuilds real indoor spaces from a single phone video as 3D Gaussian splats with collision, so you can walk through them in the browser.">
+<style>
+@font-face { font-family: "DM Sans"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(fonts/dm-sans-latin.woff2) format("woff2"); }
+:root {
+  color-scheme: dark;
+  --bg: #111318;
+  --surface: #1A1D24;
+  --surface-2: #23272F;
+  --line: #2E333D;
+  --edge: #6B7280;
+  --fg: #E5E7EB;
+  --muted: #A1A1AA;
+  --accent: #38BDF8;
+  --on-accent: #0F172A;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: "DM Sans", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+a { color: inherit; }
+img { display: block; max-width: 100%; height: auto; }
+.wrap { width: min(1560px, 100%); margin: 0 auto; padding: 0 clamp(16px, 3.5vw, 56px); }
+.eyebrow { font-size: 14px; font-weight: 500; color: var(--muted); }
+h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.01em; }
+h2 { font-size: clamp(24px, 4vw, 36px); font-weight: 700; }
+h3 { font-size: 20px; font-weight: 600; }
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 16px; max-width: 72ch; }
+section { padding: var(--space-16) 0; }
+.head { display: grid; gap: var(--space-3); margin-bottom: var(--space-8); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.nav { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; }
+.brand { font-size: 20px; font-weight: 700; text-decoration: none; }
+.brand span { color: var(--accent); }
+.nav ul { display: flex; gap: var(--space-6); list-style: none; margin: 0; padding: 0; }
+.nav ul a { font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; padding: var(--space-3) 0; }
+.nav ul a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 6px; }
+@media (max-width: 720px) { .nav ul { display: none; } }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-6); font: 600 16px var(--font); text-decoration: none; border-radius: var(--radius); border: 1px solid var(--edge); color: var(--fg); background: var(--surface); }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { background: #0EA5E9; border-color: #0EA5E9; }
+
+.hero { position: relative; padding: var(--space-16) 0 var(--space-12); border-top: 0; }
+.hero .wrap { position: relative; z-index: 1; display: grid; gap: var(--space-8); }
+.hero { padding-top: var(--space-8); }
+.hero .cta { margin-top: var(--space-4); }
+.hero .top .fact b { font-size: 20px; }
+.hero .top { display: grid; gap: var(--space-8) clamp(24px, 4vw, 72px); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: end; }
+.hero .top .facts { margin-top: 0; padding-top: 0; border-top: 0; flex-direction: column; gap: var(--space-4); padding-left: var(--space-6); border-left: 1px solid var(--line); }
+.pair { display: grid; gap: var(--space-3) var(--space-8); grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr); grid-template-rows: auto auto; }
+.pair figure { position: relative; margin: 0; display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: var(--space-3); min-width: 0; }
+.pair figcaption { font-size: 14px; color: var(--muted); }
+.pair figcaption b { color: var(--fg); font-weight: 600; }
+.frames .grid { display: grid; gap: var(--space-2); grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, minmax(0, 1fr)); min-height: 0; contain: size; }
+.frames .grid img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
+.frames::after { content: ""; position: absolute; top: calc(50% - 20px); right: -22px; width: 10px; height: 10px; border-top: 2px solid var(--accent); border-right: 2px solid var(--accent); transform: rotate(45deg); }
+.clip .screen { position: relative; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+.clip video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.clip-toggle { position: absolute; right: var(--space-3); bottom: var(--space-3); min-height: 36px; padding: 0 var(--space-3); font: 500 14px var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (hover: hover) { .clip-toggle:hover { border-color: var(--accent); } }
+@media (max-width: 880px) {
+  .hero .top { grid-template-columns: 1fr; }
+  .hero .top .facts { flex-direction: row; padding-left: 0; border-left: 0; padding-top: var(--space-6); border-top: 1px solid var(--line); gap: var(--space-6); }
+  .pair { grid-template-columns: 1fr; grid-template-rows: none; gap: var(--space-6); }
+  .pair figure { grid-row: auto; grid-template-rows: auto auto; }
+  .frames .grid { grid-template-columns: repeat(3, 1fr); grid-template-rows: none; contain: none; }
+  .frames .grid img { aspect-ratio: 4 / 3; height: auto; }
+  .frames::after { display: none; }
+}
+@media (max-width: 560px) {
+  .hero .top { gap: var(--space-6); }
+  .hero .top .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding-top: var(--space-4); }
+  .hero .top .fact b { font-size: 18px; }
+  .hero .top .fact span { font-size: 12px; display: block; line-height: 1.35; }
+}
+.hero h1 { font-size: clamp(30px, 3.4vw, 48px); font-weight: 700; margin: var(--space-2) 0 var(--space-3); max-width: 24ch; }
+.hero h1 em { font-style: normal; }
+.cta { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-6); }
+@media (max-width: 560px) { .cta .btn { flex: 1 1 100%; } }
+.facts { display: flex; gap: var(--space-8); flex-wrap: wrap; margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.fact b { display: block; font-size: 24px; font-weight: 600; color: var(--fg); }
+.fact span { font-size: 14px; color: var(--muted); }
+.shot { position: relative; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+.shot figcaption { position: absolute; left: var(--space-3); bottom: var(--space-3); font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: var(--space-1) var(--space-2); color: var(--muted); }
+@media (max-width: 720px) { .shot figcaption { position: static; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: var(--space-2) var(--space-3); } }
+
+.card { display: grid; gap: var(--space-3); align-content: start; padding: var(--space-6); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.card p { color: var(--muted); font-size: 16px; }
+
+.compare { display: grid; gap: var(--space-4); grid-template-columns: 1fr 1fr; margin-top: var(--space-4); }
+.compare .card.us { border-color: var(--accent); }
+.compare ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-2); font-size: 16px; color: var(--muted); }
+.compare li::before { content: "\2013"; margin-right: var(--space-2); color: var(--muted); }
+.compare .us li::before { content: "+"; color: var(--accent); }
+@media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+
+.flow { display: grid; gap: var(--space-4); grid-template-columns: repeat(4, 1fr); }
+.step { position: relative; display: grid; gap: var(--space-3); align-content: start; padding: var(--space-6); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.step:not(:last-child)::after { content: ""; position: absolute; top: 50%; right: -12px; width: 8px; height: 8px; border-top: 2px solid var(--edge); border-right: 2px solid var(--edge); transform: translateY(-50%) rotate(45deg); }
+.step .icon { width: 32px; height: 32px; }
+.step svg { width: 32px; height: 32px; stroke: var(--accent); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.step h3 { font-size: 16px; }
+.step .plain { font-size: 16px; color: var(--fg); }
+.step .tech { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: var(--space-3); }
+@media (max-width: 960px) { .flow { grid-template-columns: repeat(2, 1fr); } .step:nth-child(2)::after { display: none; } }
+@media (max-width: 560px) { .flow { grid-template-columns: 1fr; } .step::after { display: none; } }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 14px; }
+th, td { text-align: left; padding: var(--space-4); border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 14px; font-weight: 500; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.best { color: var(--accent); font-weight: 600; }
+td.na { color: var(--muted); }
+.note { font-size: 14px; color: var(--muted); margin-top: var(--space-3); max-width: 80ch; }
+
+.viewer { display: grid; gap: var(--space-8); grid-template-columns: 1.3fr 1fr; align-items: center; }
+.viewer ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-4); grid-column: 2; grid-row: 1 / span 2; }
+.viewer li { display: grid; gap: var(--space-1); padding-left: var(--space-4); border-left: 2px solid var(--accent); }
+.viewer li b { font-weight: 600; }
+.viewer li span { color: var(--muted); font-size: 16px; }
+kbd { font: 500 12px var(--font); color: var(--fg); border: 1px solid var(--edge); border-radius: 4px; padding: 0 var(--space-1); }
+@media (max-width: 880px) { .viewer { grid-template-columns: 1fr; } .viewer ul { grid-column: 1; grid-row: auto; } }
+
+.limits { display: grid; gap: var(--space-4); grid-template-columns: 1fr 1fr; }
+.limits .card.next { border-color: var(--accent); }
+.limits ul { margin: 0; padding-left: var(--space-6); display: grid; gap: var(--space-2); color: var(--muted); font-size: 16px; }
+@media (max-width: 720px) { .limits { grid-template-columns: 1fr; } }
+
+footer { padding: var(--space-8) 0 var(--space-12); border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; gap: var(--space-4); justify-content: space-between; flex-wrap: wrap; }
+
+
+.band { background: var(--surface); }
+.dusk { --tone: color-mix(in oklab, var(--bg) 88%, var(--accent)); background-repeat: no-repeat; background-size: 100% 160px, 100% 160px, 100% calc(100% - 318px); background-position: top, bottom, center; background-image: linear-gradient(to bottom, var(--bg), color-mix(in oklab, var(--tone) 50%, var(--bg)) 50%, var(--tone)), linear-gradient(to top, var(--bg), color-mix(in oklab, var(--tone) 50%, var(--bg)) 50%, var(--tone)), linear-gradient(var(--tone), var(--tone)); }
+section.dusk { padding-block: calc(var(--space-16) + 64px); }
+.subhead { margin: var(--space-12) 0 var(--space-4); font-size: 20px; }
+.experiments { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-6); }
+.exp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-6); padding: var(--space-6); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.exp.latest { border-color: var(--accent); }
+.exp .pic { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius); background: var(--surface-2); align-self: start; }
+.exp .pic img { width: 100%; height: 100%; object-fit: cover; }
+.badge { position: absolute; top: var(--space-3); left: var(--space-3); font-size: 12px; font-weight: 500; padding: var(--space-1) var(--space-2); border-radius: 4px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.exp.latest .badge { color: var(--accent); border-color: var(--accent); }
+.exp .body { display: grid; gap: var(--space-4); align-content: start; }
+.exp .summary { color: var(--muted); }
+.story { display: grid; gap: var(--space-1); margin: 0; }
+.story dt { font-size: 14px; font-weight: 600; margin-top: var(--space-2); }
+.story dd { margin: 0; color: var(--muted); font-size: 16px; }
+.metrics { list-style: none; margin: 0; padding: var(--space-4) 0 0; display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-8); border-top: 1px solid var(--line); }
+.metrics b { display: block; font-size: 20px; font-weight: 600; }
+.metrics span { font-size: 14px; color: var(--muted); }
+.exp .btn { justify-self: start; }
+@media (max-width: 880px) { .exp { grid-template-columns: 1fr; } }
+.nav ul a[aria-current="true"] { color: var(--fg); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 6px; text-decoration-thickness: 2px; }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top">Namma<span>Space</span></a>
+    <ul>
+      <li><a href="#experiments">Experiments</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#viewer">The viewer</a></li>
+      <li><a href="#limits">Limits and next</a></li>
+    </ul>
+    <a class="btn primary" href="hallway-4k/">Enter the 4K scene</a>
+  </div>
+</nav>
+
+<header class="hero dusk" id="top">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <span class="eyebrow">IIT Techfest 2026 &middot; NammaSpace challenge</span>
+        <h1>Walk through a real home, <em>rebuilt from one phone video.</em></h1>
+        <p class="lede">NammaSpace turns an ordinary phone walkthrough into a photo-real 3D copy of the space that runs in your browser. Walls and furniture stop you, and you can search for a place and follow a walkable route to it. No install, no scanner, no hand modelling.</p>
+        <div class="cta">
+          <a class="btn primary" href="hallway-4k/">Walk through the 4K scene &rarr;</a>
+          <a class="btn" href="#experiments">See the experiments</a>
+        </div>
+      </div>
+      <div class="facts">
+        <div class="fact"><b>29.12 dB</b><span>held-out PSNR, 4K scene</span></div>
+        <div class="fact"><b>1 video</b><span>per scene, nothing merged</span></div>
+        <div class="fact"><b>10 cm</b><span>collision grid resolution</span></div>
+      </div>
+    </div>
+    <div class="pair">
+      <figure class="frames">
+        <div class="grid">
+          <img src="img/hero/frame_1.jpg" width="800" height="450" alt="Video frame: TV corner with a window and a chair" fetchpriority="high">
+          <img src="img/hero/frame_2.jpg" width="800" height="450" alt="Video frame: the main door at the end of the hallway">
+          <img src="img/hero/frame_3.jpg" width="800" height="450" alt="Video frame: wooden wardrobe door and a switchboard">
+          <img src="img/hero/frame_4.jpg" width="800" height="450" alt="Video frame: kitchen cabinets and ceiling fan">
+          <img src="img/hero/frame_5.jpg" width="800" height="450" alt="Video frame: fridge, bedroom door and TV">
+          <img src="img/hero/frame_6.jpg" width="800" height="450" alt="Video frame: bedroom window and desk">
+        </div>
+        <figcaption><b>What we filmed.</b> Frames from one 4K phone video of the hallway and bedroom.</figcaption>
+      </figure>
+      <figure class="clip">
+        <div class="screen">
+          <video id="heroClip" src="img/hero/hero_4k_loop.mp4" poster="img/hero/hero_4k_poster.jpg" width="1280" height="720" muted loop playsinline preload="auto" aria-label="Screen recording: searching for the fridge, the route appears on the floor and the camera walks there"></video>
+          <button type="button" class="clip-toggle" id="clipToggle" aria-controls="heroClip">Pause</button>
+        </div>
+        <figcaption><b>What you get.</b> The rebuilt place in the browser: search for the fridge, follow the route, walk there.</figcaption>
+      </figure>
+    </div>
+  </div>
+</header>
+
+<section id="experiments" class="band">
+  <div class="wrap">
+    <div class="head">
+      <h2>Four experiments, each from one phone video</h2>
+      <p class="lede">Every scene is one video and one reconstruction. We kept the earlier ones online so you can see what changed. Quality is scored on frames the model never saw during training.</p>
+    </div>
+    <ol class="experiments">
+      <li class="exp">
+        <div class="pic"><img src="img/bedroom.jpg" width="1280" height="720" alt="Early bedroom reconstruction" loading="lazy"><span class="badge">Experiment 1</span></div>
+        <div class="body">
+          <h3>Early bedroom</h3>
+          <p class="summary">Our first bedroom reconstruction.</p>
+          <dl class="story">
+            <dt>What changed</dt><dd>This is the starting point: one video, trained and shown with a collision map.</dd>
+            <dt>What we learned</dt><dd>The ceiling and distant walls are rough. That became the baseline we improved on. It predates our held-out scoring, so it has no quality figure.</dd>
+          </dl>
+          <ul class="metrics">
+            <li><b>700,000</b><span>splats shown</span></li>
+            <li><b>52 &times; 71</b><span>collision cells</span></li>
+            <li><b>8.1 m&sup2;</b><span>walkable floor</span></li>
+          </ul>
+          <a class="btn" href="bedroom/">Open the scene</a>
+        </div>
+      </li>
+      <li class="exp">
+        <div class="pic"><img src="img/hallway.jpg" width="1280" height="720" alt="Hallway and bedroom reconstruction" loading="lazy"><span class="badge">Experiment 2</span></div>
+        <div class="body">
+          <h3>Hallway and bedroom</h3>
+          <p class="summary">A longer walk from a hallway into a bedroom.</p>
+          <dl class="story">
+            <dt>What changed</dt><dd>Two eye-level laps and more frames: 868, against 709 in the first hallway attempt.</dd>
+            <dt>What we learned</dt><dd>The hallway is excellent and the bedroom end is rougher. Held-out PSNR rose from 23.56 dB to 26.46 dB.</dd>
+          </dl>
+          <ul class="metrics">
+            <li><b>26.46 dB</b><span>held-out PSNR</span></li>
+            <li><b>868</b><span>frames</span></li>
+            <li><b>15.8 m&sup2;</b><span>walkable floor</span></li>
+          </ul>
+          <a class="btn" href="hallway/">Open the scene</a>
+        </div>
+      </li>
+      <li class="exp">
+        <div class="pic"><img src="img/room.jpg" width="1280" height="720" alt="Room reconstruction" loading="lazy"><span class="badge">Experiment 3</span></div>
+        <div class="body">
+          <h3>Room</h3>
+          <p class="summary">A real bedroom from one phone video.</p>
+          <dl class="story">
+            <dt>What changed</dt><dd>A sharpest-frame picker keeps the crispest frame in every half-second window and drops blurry ones.</dd>
+            <dt>What we learned</dt><dd>Sharper input gave 27.14 dB, the highest of the first three experiments, from fewer frames.</dd>
+          </dl>
+          <ul class="metrics">
+            <li><b>27.14 dB</b><span>held-out PSNR</span></li>
+            <li><b>613</b><span>frames</span></li>
+            <li><b>4.3 m&sup2;</b><span>walkable floor</span></li>
+          </ul>
+          <a class="btn" href="room/">Open the scene</a>
+        </div>
+      </li>
+      <li class="exp latest">
+        <div class="pic"><img src="img/hallway4k.jpg" width="1280" height="720" alt="Hallway and bedroom reconstruction from a 4K video" loading="lazy"><span class="badge">Experiment 4 &middot; latest</span></div>
+        <div class="body">
+          <h3>Hallway and bedroom in 4K</h3>
+          <p class="summary">The same kind of space as experiment 2, filmed in 4K.</p>
+          <dl class="story">
+            <dt>What changed</dt><dd>A 4K video of 7 min 43 s plus 79 extra photos, trained on a free cloud GPU. 937 sharp frames were picked and COLMAP placed 954 of 1,016 images. Fifteen places are tagged, so you can search for one and walk to it.</dd>
+            <dt>What we learned</dt><dd>Held-out PSNR reached 29.12 dB with fewer splats. Parts of the rooms were never filmed and the ceiling is rough: those are capture gaps, not training faults.</dd>
+          </dl>
+          <ul class="metrics">
+            <li><b>29.12 dB</b><span>held-out PSNR</span></li>
+            <li><b>937</b><span>frames</span></li>
+            <li><b>11.3 m&sup2;</b><span>walkable floor</span></li>
+            <li><b>15</b><span>places tagged</span></li>
+          </ul>
+          <a class="btn primary" href="hallway-4k/">Open the scene</a>
+        </div>
+      </li>
+    </ol>
+    <h3 class="subhead">All experiments side by side</h3>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Scene</th><th>Frames</th><th>Splats</th><th>PSNR</th><th>SSIM</th><th>LPIPS</th><th>Training</th><th>Walkable floor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Early bedroom</td><td class="na">not recorded</td><td>700,000 shown</td><td class="na">&ndash;</td><td class="na">&ndash;</td><td class="na">&ndash;</td><td class="na">&ndash;</td><td>8.1 m&sup2;</td></tr>
+          <tr><td>Hallway and bedroom</td><td>868</td><td>650,654</td><td>26.46 dB</td><td>0.874</td><td>0.244</td><td>995 s</td><td>15.8 m&sup2;</td></tr>
+          <tr><td>Room</td><td>613</td><td>541,337</td><td>27.14 dB</td><td>0.913</td><td>0.191</td><td>819 s</td><td>4.3 m&sup2;</td></tr>
+          <tr><td>Hallway and bedroom, 4K</td><td>937</td><td>344,087</td><td class="best">29.12 dB</td><td class="best">0.912</td><td class="best">0.144</td><td>1,534 s</td><td>11.3 m&sup2;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">PSNR and SSIM: higher is better. LPIPS: lower is better. Scores are measured on frames held out from training. Walkable floor is the area your body centre can reach after the 25 cm margin, so it is smaller than the room. Training times are not like for like: the first three ran on a lab GPU and the 4K scene on a free cloud GPU at half-size images. Splat counts are what each site shows after cleaning.</p>
+  </div>
+</section>
+
+<section id="how" class="dusk">
+  <div class="wrap">
+    <div class="head">
+      <h2>From a phone video to a place you can walk in</h2>
+      <p class="lede">Four stages, one command each. A plain description on top, what actually runs underneath.</p>
+    </div>
+    <div class="flow">
+      <article class="step">
+        <div class="icon"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="3" width="14" height="26" rx="3"/><path d="M14 6h4M14 25h4"/><circle cx="16" cy="15" r="3"/></svg></div>
+        <h3>1. Phone video</h3>
+        <p class="plain">Walk slowly around the room while filming.</p>
+        <p class="tech">Sharpest-frame picker keeps the crispest frame in each half-second window. Blurry frames are dropped.</p>
+      </article>
+      <article class="step">
+        <div class="icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 24l7-10 5 6 4-8 6 12"/><circle cx="12" cy="14" r="1.5"/><circle cx="21" cy="12" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg></div>
+        <h3>2. COLMAP</h3>
+        <p class="plain">Work out where the camera was for every frame.</p>
+        <p class="tech">Structure-from-Motion solves each camera pose and a sparse point cloud. Poses are final and never re-run.</p>
+      </article>
+      <article class="step">
+        <div class="icon"><svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="11" cy="12" rx="7" ry="4" transform="rotate(-20 11 12)"/><ellipse cx="21" cy="19" rx="7" ry="3.5" transform="rotate(25 21 19)"/><ellipse cx="14" cy="23" rx="5" ry="3" transform="rotate(-10 14 23)"/></svg></div>
+        <h3>3. 3D Gaussian Splatting</h3>
+        <p class="plain">Grow a cloud of soft 3D blobs that reproduce the real views.</p>
+        <p class="tech">nerfstudio splatfacto, 30,000 steps. The first experiments trained on a lab RTX PRO 6000 Blackwell, the 4K scene on a free cloud T4.</p>
+      </article>
+      <article class="step">
+        <div class="icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 4h24v24H4zM4 12h24M4 20h24M12 4v24M20 4v24"/><circle cx="16" cy="16" r="2.5"/></svg></div>
+        <h3>4. Walkable digital twin</h3>
+        <p class="plain">Add floor, walls and furniture collision, then publish.</p>
+        <p class="tech">Floor-aligned and scaled, 10 cm grid with a 25 cm body margin, W A S D controls in a WebGL2 viewer.</p>
+      </article>
+    </div>
+    <h3 class="subhead">How it differs from an ordinary 3D model</h3>
+    <div class="compare">
+      <article class="card">
+        <h3>An ordinary 3D model</h3>
+        <ul>
+          <li>Surfaces and textures made by hand or by a mesh generator</li>
+          <li>Lighting is approximated, reflections are baked or missing</li>
+          <li>Looks like a model, however well it is made</li>
+        </ul>
+      </article>
+      <article class="card us">
+        <h3>NammaSpace</h3>
+        <ul>
+          <li>Appearance learned from the real frames, view by view</li>
+          <li>Soft edges, glossy floor and fabric detail come from the data</li>
+          <li>Collision comes from the scan itself, not a hand-placed box</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="viewer">
+  <div class="wrap">
+    <div class="head">
+      <h2>Built to be explored, not just watched</h2>
+      <p class="lede">Each scene is a 5 to 24 MB download on a plain web page, drawn in full colour by Spark, an open-source splat renderer. Open a link and walk.</p>
+    </div>
+    <div class="viewer">
+      <figure class="shot" style="margin:0">
+        <img src="img/room_ui.jpg" width="1280" height="720" alt="The viewer: fps and Settings at the top right, live map at the top left, controls at the bottom left and the Find a place button at the bottom right" loading="lazy">
+        <figcaption>The viewer, hallway and bedroom scene</figcaption>
+      </figure>
+      <figure class="shot" style="margin:0;grid-column:1">
+        <img src="img/live_map.jpg" width="900" height="360" alt="The walkable map overlay on the floor: a plain grid for walkable floor, amber diagonal hatching for the safety margin and red for obstacles" loading="lazy">
+        <figcaption>The walkable map overlay, close up</figcaption>
+      </figure>
+      <ul>
+        <li><b>Find a place</b><span>In scenes with tagged places, press <kbd>/</kbd> or choose Find a place, pick a result, then Walk there or Fly there. The route is drawn on the floor and on the live map.</span></li>
+        <li><b>Move on any device</b><span>On a laptop, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk, <kbd>Shift</kbd> runs and the mouse looks. On a phone, use the joystick to walk and drag the scene to look.</span></li>
+        <li><b>Live map</b><span>Drawn from the same collision grid the walls use. Your position, viewing cone, places, walkable floor and obstacles update as you move. Press <kbd>N</kbd> to show or hide it.</span></li>
+        <li><b>Walkable map</b><span>Press <kbd>M</kbd> to overlay the collision grid in 3D. A plain grid is walkable floor, amber hatching is the safety margin and red is an obstacle.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <div class="head">
+      <h2>What works today, and what comes next</h2>
+    </div>
+    <div class="limits">
+      <article class="card">
+        <h3>Known limits</h3>
+        <ul>
+          <li>Ceilings and areas the camera barely saw are rough or dark.</li>
+          <li>Collision is a 2D floor grid. It stops you at walls and furniture but does not model stairs or overhangs.</li>
+          <li>Scale assumes a fixed phone height rather than a measured reference object.</li>
+        </ul>
+      </article>
+      <article class="card next">
+        <h3>Next</h3>
+        <ul>
+          <li>Android augmented reality with WebXR, which is researched but not started.</li>
+          <li>Stronger collision where one source of evidence disagrees with the other.</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>NammaSpace &middot; built for IIT Techfest 2026</span>
+    <span>W A S D walk &middot; Shift run &middot; Space jump &middot; / find a place &middot; N live map &middot; M walkable map</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var clip = document.getElementById("heroClip"), toggle = document.getElementById("clipToggle");
+  var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function label() { toggle.textContent = clip.paused ? "Play" : "Pause"; }
+  clip.addEventListener("play", label);
+  clip.addEventListener("pause", label);
+  toggle.addEventListener("click", function () { if (clip.paused) clip.play(); else clip.pause(); });
+  if (!still) { var p = clip.play(); if (p && p.catch) p.catch(label); }
+  label();
+})();
+</script>
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll(".nav ul a"));
+  var targets = links.map(function (link) { return document.querySelector(link.getAttribute("href")); });
+  function update() {
+    var line = window.innerHeight * 0.35, current = -1;
+    targets.forEach(function (target, i) { if (target && target.getBoundingClientRect().top <= line) current = i; });
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = links.length - 1;
+    links.forEach(function (link, i) { if (i === current) link.setAttribute("aria-current", "true"); else link.removeAttribute("aria-current"); });
+  }
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+})();
+</script>
+</body>
+</html>

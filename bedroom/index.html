@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script>if (/[?&]embed/.test(location.search)) document.documentElement.classList.add("embed");</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NammaSpace Early bedroom</title>
+<style>
+@font-face { font-family: "DM Sans"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(fonts/dm-sans-latin.woff2) format("woff2"); }
+:root {
+  color-scheme: dark;
+  --bg: #111318;
+  --surface: #1A1D24;
+  --surface-2: #23272F;
+  --line: #2E333D;
+  --edge: #6B7280;
+  --fg: #E5E7EB;
+  --muted: #A1A1AA;
+  --accent: #38BDF8;
+  --on-accent: #0F172A;
+  --warn: #F87171;
+  --scrim: rgba(8, 10, 14, 0.6);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius: 8px;
+  --radius-sheet: 12px;
+  --target: 44px;
+  --text-s: 12px;
+  --text-m: 14px;
+  --text-l: 16px;
+  --text-xl: 20px;
+  --font: "DM Sans", system-ui, sans-serif;
+}
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: var(--text-m); line-height: 1.5; overflow: hidden; font-variant-numeric: tabular-nums; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; cursor: grab; }
+#stage.locked { cursor: none; }
+button, input, a { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3) var(--space-4); font-size: var(--text-m); }
+.btn { min-height: var(--target); padding: 0 var(--space-4); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); font: 500 var(--text-m) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; touch-action: manipulation; }
+.btn:hover { border-color: var(--accent); }
+.btn:active { background: var(--surface-2); }
+.btn.primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; font-size: var(--text-l); }
+.btn.primary:active { background: #0EA5E9; border-color: #0EA5E9; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+kbd { font: 500 var(--text-s) var(--font); color: var(--fg); border: 1px solid var(--edge); border-radius: 4px; padding: 0 var(--space-1); }
+.btn.primary kbd { color: var(--on-accent); border-color: var(--on-accent); }
+.seg { display: flex; gap: var(--space-2); }
+.seg button { flex: 1; min-height: var(--target); padding: 0 var(--space-3); font: 500 var(--text-m) var(--font); color: var(--fg); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius); cursor: pointer; touch-action: manipulation; }
+.seg button:hover { border-color: var(--accent); }
+.seg button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+
+#head .head-right { display: flex; align-items: center; gap: var(--space-2); flex: none; pointer-events: none; }
+#fpsTop { display: inline-flex; align-items: center; min-height: var(--target); padding: 0 var(--space-3); font-size: var(--text-m); color: var(--muted); }
+#fpsTop b { color: var(--fg); font-weight: 600; margin-right: var(--space-1); }
+#head { position: fixed; top: max(var(--space-3), env(safe-area-inset-top)); left: var(--space-4); right: var(--space-4); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); pointer-events: none; }
+#head h1 { margin: 0; padding: var(--space-2) var(--space-3); font-size: var(--text-l); font-weight: 600; line-height: 1.5; min-width: 0; text-wrap: balance; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+#head .btn { pointer-events: auto; flex: none; }
+
+#dock { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(440px, 100%); box-sizing: border-box; padding: 0 var(--space-4) max(var(--space-4), env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--space-2); pointer-events: none; z-index: 2; }
+#dock > * { pointer-events: auto; }
+#dock .poi-status, #dock .notice { pointer-events: none; }
+#dock .notice { font-size: var(--text-m); }
+#action { display: grid; }
+#dock:has(.poi-card:not([hidden])) #findBtn { color: var(--fg); background: var(--surface); border-color: var(--edge); font-size: var(--text-m); font-weight: 500; }
+#dock:has(.poi-card:not([hidden])) #findBtn kbd { color: var(--fg); border-color: var(--edge); }
+@media (max-width: 720px) { #dock:has(.poi-card:not([hidden])) #stick { display: none; } }
+#stick { display: none; position: relative; width: 128px; height: 128px; border: 2px solid var(--edge); border-radius: 50%; background: var(--surface); opacity: 0.9; touch-action: none; align-self: flex-start; }
+#stick i { position: absolute; left: 36px; top: 36px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); }
+@media (pointer: coarse) { #stick { display: block; } #fpsTop { display: none; } .btn kbd { display: none; } }
+@media (min-width: 721px) and (pointer: fine) { #dock { left: auto; right: var(--space-4); transform: none; width: 400px; } }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  #stick { position: fixed; left: max(var(--space-4), env(safe-area-inset-left)); bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  #dock { left: auto; right: max(var(--space-4), env(safe-area-inset-right)); transform: none; width: min(400px, calc(100% - 176px)); }
+  #dock .poi-card { max-height: calc(100dvh - 96px); overflow: auto; }
+  #dock .poi-nearby { display: none; }
+}
+#controls { display: none; position: fixed; left: var(--space-4); bottom: var(--space-4); max-width: 420px; flex-wrap: wrap; gap: var(--space-1) var(--space-4); color: var(--muted); font-size: var(--text-m); pointer-events: none; }
+#controls kbd + kbd { margin-left: var(--space-1); }
+@media (min-width: 901px) and (pointer: fine) { #controls { display: flex; } }
+body:not(.mouse-locked) #controls .when-locked, body.mouse-locked #controls .when-free { display: none; }
+@media (max-width: 720px) { #head .brand { display: none; } }
+
+#settings, #guide { position: fixed; inset: 0; z-index: 6; display: grid; align-items: end; justify-items: center; background: var(--scrim); }
+#settings .sheet { box-sizing: border-box; width: min(480px, 100%); max-height: 85dvh; overflow: auto; display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-4) max(var(--space-4), env(safe-area-inset-bottom)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
+#settings .sheet-head { display: flex; justify-content: space-between; align-items: center; }
+#settings h2, #guide h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; line-height: 1.25; }
+#settings .field { display: grid; gap: var(--space-2); }
+#settings .field > span { font-size: var(--text-m); color: var(--muted); }
+#settings .readout { margin: 0; font-size: var(--text-m); color: var(--muted); }
+#settings .readout b { color: var(--fg); font-weight: 600; }
+#settings .links { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+#settings .links a.btn { text-decoration: none; }
+@media (min-width: 721px) {
+  #settings { align-items: start; justify-items: end; background: transparent; }
+  #settings .sheet { margin: calc(var(--space-3) + var(--target) + var(--space-2)) var(--space-4) 0; width: 340px; border-radius: var(--radius-sheet); }
+}
+
+#guide { align-items: center; padding: var(--space-4); }
+#guide .card { box-sizing: border-box; width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow: auto; display: grid; gap: var(--space-4); padding: var(--space-6); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sheet); }
+#guide p { margin: 0; color: var(--muted); font-size: var(--text-m); line-height: 1.5; }
+#guide .steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+#guide .step { display: grid; gap: var(--space-1); align-content: start; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); }
+#guide .step b { font-size: var(--text-m); font-weight: 600; }
+#guide .step span { font-size: var(--text-m); line-height: 1.5; color: var(--muted); }
+#guide .step kbd { color: var(--fg); }
+#guide .actions { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+#guide .actions small { color: var(--muted); font-size: var(--text-m); }
+@media (max-width: 520px) { #guide .steps { grid-template-columns: 1fr; } }
+
+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 8; }
+#loading .ld { width: min(380px, calc(100vw - 32px)); display: grid; gap: var(--space-3); text-align: center; }
+#loading p { margin: 0; font-size: var(--text-l); color: var(--muted); }
+#loading .ldbrand { font-size: var(--text-xl); font-weight: 600; color: var(--fg); }
+#loadpct { font-size: var(--text-xl); font-weight: 600; color: var(--fg); }
+#bar { width: 100%; height: var(--space-1); background: var(--line); overflow: hidden; }
+#bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+#err { color: var(--warn); }
+
+#minimap { position: fixed; top: calc(var(--space-3) + var(--target) + var(--space-2)); left: var(--space-4); display: grid; gap: var(--space-2); padding: var(--space-2); }
+#minimap canvas { display: block; width: 176px; height: 176px; border-radius: 4px; background: var(--bg); }
+#minimap .cap { font-size: var(--text-s); color: var(--muted); }
+#minimap .key { display: flex; gap: var(--space-3); font-size: var(--text-s); color: var(--muted); }
+#minimap .key i { display: inline-block; width: 8px; height: 8px; margin-right: var(--space-1); }
+@media (max-width: 720px) { #minimap canvas { width: 96px; height: 96px; } #minimap .key { display: none; } }
+
+#walkkey { position: fixed; top: calc(var(--space-3) + var(--target) + var(--space-2)); right: var(--space-4); display: none; gap: var(--space-3); padding: var(--space-2) var(--space-3); font-size: var(--text-s); color: var(--fg); pointer-events: none; }
+body.walkmap #walkkey { display: flex; }
+#walkkey .sw { display: inline-block; box-sizing: border-box; width: 12px; height: 12px; margin-right: var(--space-2); vertical-align: -2px; border-radius: 2px; }
+.sw-walk { border: 1px solid #E5E7EB; background: rgba(229, 231, 235, 0.18); }
+.sw-margin { border: 1px solid #FBBF24; background: repeating-linear-gradient(135deg, #FBBF24 0 2px, transparent 2px 4px); }
+.sw-wall { background: #F87171; }
+@media (max-width: 720px) { #walkkey { flex-direction: column; gap: var(--space-1); } }
+
+#dbg { position: fixed; top: calc(var(--space-3) + var(--target) + var(--space-2)); right: var(--space-4); margin: 0; padding: var(--space-2) var(--space-3); font-size: var(--text-s); color: var(--fg); text-align: left; pointer-events: none; }
+
+#embedBtns { display: none; position: fixed; top: var(--space-2); right: var(--space-2); z-index: 4; }
+html.embed #embedBtns { display: flex; }
+html.embed #head, html.embed #controls, html.embed #stick, html.embed #findBtn, html.embed #walkkey { display: none; }
+html.embed #minimap { top: auto; left: var(--space-2); bottom: var(--space-2); padding: var(--space-1); }
+html.embed #minimap canvas { width: 96px; height: 96px; }
+html.embed #minimap .cap, html.embed #minimap .key { display: none; }
+html.embed #dock { width: min(440px, calc(100% - 128px)); padding-bottom: var(--space-2); left: auto; right: var(--space-2); transform: none; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<link rel="stylesheet" href="poi.css?v=20261124b">
+</head>
+<body>
+<canvas id="stage" tabindex="0"></canvas>
+
+<header id="head">
+  <h1><span class="brand">NammaSpace &middot; </span><span class="scene">Early bedroom</span></h1>
+  <div class="head-right">
+    <span id="fpsTop" class="panel"><b id="fpsTopVal">--</b> fps</span>
+    <button type="button" class="btn" id="settingsBtn" aria-haspopup="dialog" aria-controls="settings">Settings</button>
+  </div>
+</header>
+
+<div id="embedBtns"><button type="button" class="btn" id="fsBtn" aria-label="Full screen">Full screen</button></div>
+<pre id="dbg" class="panel" hidden></pre>
+
+<div id="minimap" class="panel" hidden>
+  <div class="cap">Live map</div>
+  <canvas id="minimapCanvas" width="352" height="352" aria-label="Live map showing your position and viewing direction"></canvas>
+  <div class="key"><span><i style="background:rgba(229,231,235,0.55)"></i>Walkable</span><span><i style="background:rgba(248,113,113,0.7)"></i>Obstacle</span></div>
+</div>
+
+<div id="walkkey" class="panel"><span><i class="sw sw-walk"></i>Walkable</span><span><i class="sw sw-margin"></i>Safety margin</span><span><i class="sw sw-wall"></i>Obstacle</span></div>
+
+<div id="controls" class="panel">
+  <span class="when-free">Click the scene to look around</span>
+  <span class="when-locked">Esc releases the mouse</span>
+  <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
+  <span><kbd>Shift</kbd> run</span>
+  <span><kbd>Space</kbd> jump</span>
+  <span data-places><kbd>/</kbd> find a place</span>
+  <span><kbd>M</kbd> walkable map</span>
+  <span><kbd>R</kbd> back to door</span>
+</div>
+
+<div id="dock">
+  <div id="stick" aria-label="Walk joystick"><i></i></div>
+  <div id="action"><button type="button" class="btn primary" id="findBtn" hidden>Find a place <kbd>/</kbd></button></div>
+</div>
+
+<div id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="settingsTitle">Settings</h2><button type="button" class="btn" id="settingsClose">Close</button></div>
+    <div class="field" id="viewField"><span id="viewLabel">View</span>
+      <div class="seg" role="group" aria-labelledby="viewLabel">
+        <button type="button" data-mode="splat" aria-pressed="true">Splat</button>
+        <button type="button" data-mode="mesh" aria-pressed="false">Mesh</button>
+      </div>
+    </div>
+    <div class="field"><span id="detailLabel">Detail</span>
+      <div class="seg" id="detail" role="group" aria-labelledby="detailLabel">
+        <button type="button" data-scale="0.6" aria-pressed="false">60%</button>
+        <button type="button" data-scale="0.8" aria-pressed="false">80%</button>
+        <button type="button" data-scale="1" aria-pressed="true">Full</button>
+      </div>
+    </div>
+    <div class="field"><span id="mapsLabel">Maps</span>
+      <div class="seg" role="group" aria-labelledby="mapsLabel">
+        <button type="button" id="mapBtn" aria-pressed="false">Live map</button>
+        <button type="button" id="debugBtn" aria-pressed="false">Walkable map</button>
+      </div>
+    </div>
+    <p class="readout"><b id="fps">--</b> fps &middot; <b id="count">--</b> splats &middot; <span id="pos">x -- y -- z --</span></p>
+    <div class="links">
+      <button type="button" class="btn" id="guideBtn">How to move</button>
+      <a class="btn" href="../">All scenes</a>
+    </div>
+  </div>
+</div>
+
+<div id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTitle" hidden>
+  <div class="card">
+    <div>
+      <h2 id="guideTitle">How to move</h2>
+      <p>This is a 3D scan of a real room, built from one phone video. Walls and furniture stop you.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><b>Walk</b><span>Keyboard: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys. Touch: use the joystick.</span></div>
+      <div class="step"><b>Look</b><span>Mouse: click the scene, then move the mouse. <kbd>Esc</kbd> releases it. Touch: drag the scene.</span></div>
+      <div class="step" data-places><b>Find a place</b><span>Press <kbd>/</kbd> or choose Find a place. Pick a result, then Walk there or Fly there.</span></div>
+      <div class="step"><b>Other keys</b><span><kbd>Shift</kbd> runs, <kbd>Space</kbd> jumps, <kbd>R</kbd> returns to the door, <kbd>M</kbd> shows the walkable map, <kbd>N</kbd> the live map.</span></div>
+    </div>
+    <div class="actions"><small>Open this again from Settings.</small><button type="button" class="btn primary" id="guideGo">Got it</button></div>
+  </div>
+</div>
+
+<div id="loading"><div class="ld"><p class="ldbrand">NammaSpace</p><p id="loadmsg">Loading scene</p><div id="bar"><i id="barfill"></i></div><p id="loadpct">0%</p><p id="err" hidden></p></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js",
+  "three/addons/": "./vendor/three-addons/",
+  "@sparkjsdev/spark": "./vendor/spark.module.js"
+} }
+</script>
+<script type="module" src="boot.js?v=20261125a"></script>
+</body>
+</html>

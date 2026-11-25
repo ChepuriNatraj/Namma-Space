@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "pois": [
+    {
+      "id": "tv",
+      "name": "TV",
+      "aliases": ["television", "telly", "screen"],
+      "category": "appliance",
+      "x": 0.3,
+      "y": 1.15,
+      "z": 0.86,
+      "description": "Television on the wooden cabinet beside the hallway window"
+    },
+    {
+      "id": "fridge",
+      "name": "Fridge",
+      "aliases": ["refrigerator", "freezer", "cooler"],
+      "category": "appliance",
+      "x": -0.22,
+      "y": 0.81,
+      "z": -1.37,
+      "description": "Refrigerator in the kitchen corner, next to the water can"
+    },
+    {
+      "id": "switchboard",
+      "name": "Switchboard",
+      "aliases": ["switch", "switches", "light switch", "socket"],
+      "category": "electrical",
+      "x": -3.44,
+      "y": 1.51,
+      "z": 0.42,
+      "description": "Switch panel on the hallway wall, next to the wooden door"
+    },
+    {
+      "id": "mirror",
+      "name": "Mirror",
+      "aliases": ["looking glass", "wash basin mirror"],
+      "category": "furniture",
+      "x": -0.23,
+      "y": 1.29,
+      "z": -3.09,
+      "description": "Wall mirror above the wash basin at the far end of the kitchen corner"
+    },
+    {
+      "id": "bed",
+      "name": "Bed",
+      "aliases": ["cot", "mattress"],
+      "category": "furniture",
+      "x": 1.62,
+      "y": 0.48,
+      "z": -2.17,
+      "description": "Bed under the bedroom window"
+    },
+    {
+      "id": "wardrobe",
+      "name": "Wardrobe",
+      "aliases": ["almirah", "closet", "cupboard"],
+      "category": "furniture",
+      "x": 2.83,
+      "y": 1.35,
+      "z": -1.58,
+      "description": "Dark sliding-door wardrobe on the bedroom wall"
+    }
+  ]
+}
